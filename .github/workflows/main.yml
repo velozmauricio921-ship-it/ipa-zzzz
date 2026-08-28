@@ -1,0 +1,176 @@
+
+name: iOS unsigned build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "CI debug: Git and file snapshot"
+        run: |
+          echo "--- GIT INFO ---"
+          git --version || true
+          git rev-parse --abbrev-ref HEAD || true
+          git rev-parse HEAD || true
+          echo "--- STATUS ---"
+          git status --porcelain || true
+          echo "--- REMOTES ---"
+          git remote -v || true
+          echo "--- WORKSPACE LISTING ---"
+          pwd || true
+          ls -la || true
+          echo "--- LAST COMMIT ---"
+          git --no-pager log -n 1 --pretty=fuller || true
+          echo "--- FILE SNAPSHOT: LicenseGateView.swift ---"
+          if [ -f "ThreeOneOSFive/views/LicenseGateView.swift" ]; then
+            sed -n '1,200p' ThreeOneOSFive/views/LicenseGateView.swift || true
+          else
+            echo "File not found: ThreeOneOSFive/views/LicenseGateView.swift"
+          fi
+
+      - name: Show Xcode project schemes (debug)
+        run: |
+          xcodebuild -list -project "3105-1.1.1/ThreeOneOSFive.xcodeproj"
+
+      - name: Check for merge conflict markers
+        run: |
+          if git grep -n -E '^(<{7}|={7}|>{7})' -- 
+          then
+            echo "::error::Found merge conflict markers in repository. Resolve them before building.";
+            git grep -n -E '^(<{7}|={7}|>{7})' -- || true;
+            exit 1;
+          else
+            echo "No merge conflict markers found."
+          fi
+
+      - name: Build unsigned app
+        run: |
+          set -e
+          mkdir -p Build/logs
+          set -o pipefail
+          xcodebuild \
+            -project "3105-1.1.1/ThreeOneOSFive.xcodeproj" \
+            -scheme "3105" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath Build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee Build/logs/xcodebuild.log
+
+      - name: Validate KeyAuth secrets
+        run: |
+          set -e
+          if [ -z "${{ secrets.KEYAUTH_SECRET }}" ]; then
+            echo "::error::Missing KEYAUTH_SECRET (add as repository secret)";
+            exit 1;
+          fi
+          if [ -z "${{ secrets.KEYAUTH_OWNER_ID }}" ]; then
+            echo "::error::Missing KEYAUTH_OWNER_ID (add as repository secret)";
+            exit 1;
+          fi
+          if [ -z "${{ secrets.KEYAUTH_APP_NAME }}" ]; then
+            echo "::error::Missing KEYAUTH_APP_NAME (add as repository secret)";
+            exit 1;
+          fi
+
+      - name: Inject KeyAuth config into built Info.plist (from secrets)
+        if: always()
+        env:
+          KEYAUTH_APP_NAME: ${{ secrets.KEYAUTH_APP_NAME }}
+          KEYAUTH_OWNER_ID: ${{ secrets.KEYAUTH_OWNER_ID }}
+          KEYAUTH_SECRET: ${{ secrets.KEYAUTH_SECRET }}
+          KEYAUTH_BASEURL: ${{ secrets.KEYAUTH_BASEURL }}
+          DISPLAY_NAME: ${{ secrets.APP_DISPLAY_NAME }}
+        run: |
+          set -e
+          APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
+          echo "App path: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "No app found to inject config"; exit 0
+          fi
+
+          PLIST="$APP_PATH/Info.plist"
+          echo "Modifying $PLIST"
+
+          # Helper to set or add a string key using plutil (safer), with PlistBuddy fallback
+          set_plist() {
+            KEY="$1"; VALUE="$2"
+            if [ -z "$VALUE" ]; then return; fi
+            # Try plutil -replace first (handles quoting robustly)
+            /usr/bin/plutil -replace "$KEY" -string "$VALUE" "$PLIST" 2>/dev/null || {
+              # If plutil failed (e.g., key missing), try PlistBuddy add/set with escaped value
+              esc_value="$VALUE"
+              esc_value="${esc_value//\\/\\\\}"
+              esc_value="${esc_value//\"/\\\"}"
+              esc_value="${esc_value//$'\n'/\\n}"
+              esc_value="${esc_value//$'\r'/\\r}"
+              /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1 && \
+                /usr/libexec/PlistBuddy -c "Set :$KEY \"$esc_value\"" "$PLIST" || \
+                /usr/libexec/PlistBuddy -c "Add :$KEY string \"$esc_value\"" "$PLIST"
+            }
+          }
+
+          set_plist "KeyAuthAppName" "$KEYAUTH_APP_NAME"
+          set_plist "KeyAuthOwnerID" "$KEYAUTH_OWNER_ID"
+          set_plist "KeyAuthAppSecret" "$KEYAUTH_SECRET"
+          set_plist "KeyAuthBaseURL" "$KEYAUTH_BASEURL"
+          set_plist "CFBundleDisplayName" "$DISPLAY_NAME"
+
+          echo "Injected KeyAuth config into $PLIST"
+
+      - name: Upload xcodebuild log
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: Build/logs/xcodebuild.log
+
+      - name: Package unsigned app
+        run: |
+          set -e
+          APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
+          echo "App path: $APP_PATH"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No se encontró 3105.app"
+            exit 1
+          fi
+
+          # If repository contains Preloaded .3105 packages, copy them into the built app bundle
+          REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
+          if [ -d "$REPO_PRELOADED_DIR" ]; then
+            echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
+            mkdir -p "$APP_PATH/Preloaded"
+            cp -R "$REPO_PRELOADED_DIR/"* "$APP_PATH/Preloaded/" || true
+          else
+            echo "No repo Preloaded dir found at $REPO_PRELOADED_DIR"
+          fi
+
+          # Dump Info.plist and search for common strings to help debug build contents
+          echo "--- Info.plist contents ---"
+          if [ -f "$APP_PATH/Info.plist" ]; then
+            plutil -p "$APP_PATH/Info.plist" || true
+          fi
+          echo "--- Searching binary/resources for keywords ---"
+          strings "$APP_PATH/3105" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
+
+          rm -rf Payload ios-unsigned-test.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ios-unsigned-test.ipa Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-build-${{ github.sha }}
+          path: ./ios-unsigned-test.ipa
