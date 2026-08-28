@@ -19,6 +19,28 @@ struct PatchPasswordRequest: Identifiable {
 }
 
 enum PatchProjectLibrary {
+    private static let installNamespaceKey = "PatchProjectLibrary.installNamespace"
+
+    private static func appNamespace() -> String {
+        if let stored = UserDefaults.standard.string(forKey: installNamespaceKey), !stored.isEmpty {
+            return stored
+        }
+
+        let generated = UUID().uuidString
+        UserDefaults.standard.set(generated, forKey: installNamespaceKey)
+        return generated
+    }
+
+    static func legacyPackageRootURL(fileManager: FileManager = .default) throws -> URL {
+        let base = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        return base.appendingPathComponent("PatchProjects", isDirectory: true)
+    }
+
     static func packageRootURL(fileManager: FileManager = .default) throws -> URL {
         let base = try fileManager.url(
             for: .applicationSupportDirectory,
@@ -26,7 +48,18 @@ enum PatchProjectLibrary {
             appropriateFor: nil,
             create: true
         )
-        let root = base.appendingPathComponent("PatchProjects", isDirectory: true)
+        let root = base
+            .appendingPathComponent(appNamespace(), isDirectory: true)
+            .appendingPathComponent("PatchProjects", isDirectory: true)
+
+        let legacyRoot = try legacyPackageRootURL(fileManager: fileManager)
+        if fileManager.fileExists(atPath: legacyRoot.path),
+           legacyRoot.path != root.path {
+            do {
+                try? fileManager.removeItem(at: legacyRoot)
+            }
+        }
+
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
@@ -38,15 +71,31 @@ enum PatchProjectLibrary {
         return root
     }
 
+    static func preloadedRootURL(fileManager: FileManager = .default) throws -> URL {
+        let root = try packageRootURL(fileManager: fileManager)
+            .appendingPathComponent("Preloaded", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
     static func load(fileManager: FileManager = .default) -> [PatchLibraryItem] {
         ensurePreloadedPackagesInstalled(fileManager: fileManager)
 
-        guard let root = try? packageRootURL(fileManager: fileManager),
-              let urls = try? fileManager.contentsOfDirectory(
-                at: root,
-                includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
-                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-              ) else { return [] }
+        guard let root = try? packageRootURL(fileManager: fileManager) else { return [] }
+
+        let rootURLs = (try? fileManager.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+        )) ?? []
+
+        let preloadedURLs = (try? fileManager.contentsOfDirectory(
+            at: try preloadedRootURL(fileManager: fileManager),
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+        )) ?? []
+
+        let urls = rootURLs + preloadedURLs
 
         var byID: [UUID: PatchLibraryItem] = [:]
         for url in urls where url.pathExtension.lowercased() == "3105" {
@@ -206,6 +255,23 @@ enum PatchProjectLibrary {
     static func ensurePreloadedPackagesInstalled(fileManager: FileManager = .default) {
         guard let libraryRoot = try? packageRootURL(fileManager: fileManager) else { return }
 
+        let preloadedRoot: URL
+        do {
+            preloadedRoot = try preloadedRootURL(fileManager: fileManager)
+        } catch {
+            log("preload: failed to prepare preloaded cache — \(error.localizedDescription)")
+            return
+        }
+
+        do {
+            if fileManager.fileExists(atPath: preloadedRoot.path) {
+                try fileManager.removeItem(at: preloadedRoot)
+            }
+            try fileManager.createDirectory(at: preloadedRoot, withIntermediateDirectories: true)
+        } catch {
+            log("preload: failed to clear stale preloaded cache — \(error.localizedDescription)")
+        }
+
         var bundleURLs: [URL] = []
 
         if let resourceRoot = Bundle.main.resourceURL {
@@ -236,30 +302,36 @@ enum PatchProjectLibrary {
         }
 
         let uniqueBundleURLs = Dictionary(uniqueKeysWithValues: bundleURLs.map { ($0.lastPathComponent, $0) }).values
-        let installedNames: Set<String>
-        if let existing = try? fileManager.contentsOfDirectory(
-            at: libraryRoot,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        ) {
-            installedNames = Set(existing.map { $0.lastPathComponent })
-        } else {
-            installedNames = []
-        }
+        let bundleNames = Set(uniqueBundleURLs.map { $0.lastPathComponent })
 
         for sourceURL in uniqueBundleURLs.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            let destinationURL = libraryRoot.appendingPathComponent(sourceURL.lastPathComponent)
-            guard !installedNames.contains(sourceURL.lastPathComponent) else { continue }
-
+            let destinationURL = preloadedRoot.appendingPathComponent(sourceURL.lastPathComponent)
             do {
                 if fileManager.fileExists(atPath: destinationURL.path) {
                     try fileManager.removeItem(at: destinationURL)
                 }
                 try fileManager.copyItem(at: sourceURL, to: destinationURL)
-                log("preload: copied bundled package \(sourceURL.lastPathComponent) to library")
+                log("preload: copied bundled package \(sourceURL.lastPathComponent) to cache")
             } catch {
                 log("preload: failed to copy \(sourceURL.lastPathComponent) — \(error.localizedDescription)")
             }
+        }
+
+        do {
+            let existing = try fileManager.contentsOfDirectory(
+                at: libraryRoot,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+            )
+            let stalePreloadedFiles = existing.filter {
+                $0.pathExtension.lowercased() == "3105" &&
+                bundleNames.contains($0.lastPathComponent)
+            }
+            for stale in stalePreloadedFiles {
+                try? fileManager.removeItem(at: stale)
+            }
+        } catch {
+            log("preload: failed to prune stale library copies")
         }
     }
 
