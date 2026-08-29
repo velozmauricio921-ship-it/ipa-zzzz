@@ -279,29 +279,10 @@ class AppState: ObservableObject {
     }
 
     func runKernelExploitIfNeeded() {
-        refreshKernelExploitStatus()
-        guard !kernelExploitRunning,
-              !exploitStatus.isSuccess,
-              !exploitStatus.isFailed else { return }
-        kernelExploitRunning = true
+        // Hard safety gate: exploit execution is disabled in this build.
+        // This prevents accidental startup or background launch from crashing the app.
+        kernelExploitRunning = false
         exploitStatus = .notStarted
-        log("app: running kernel exploit on background...")
-        DispatchQueue.global(qos: .userInitiated).async {
-            let ok = KernelExploit.run()
-            DispatchQueue.main.async {
-                self.kernelExploitRunning = false
-                if ok {
-                    self.exploitStatus = .success(method: "kexploit")
-                    if KernelExploit.requiresSandboxEscape {
-                        log("app: kernel exploit success — sandbox access verified")
-                    } else {
-                        log("app: kernel exploit success — kernel access active")
-                    }
-                } else {
-                    self.exploitStatus = .failed(method: "kexploit", code: -1)
-                    log("app: kernel exploit failed — relaunch the app before retrying")
-                }
-            }
-        }
+        log("app: kernel exploit execution disabled in this build; no automatic launch allowed")
     }
 }
