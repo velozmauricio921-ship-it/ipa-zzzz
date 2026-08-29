@@ -173,4 +173,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: BAIJ STORE-${{ github.sha }}
-          path: ./ios-unsigned-test.ipa
+          path: ./BAIJ STORE.ipa
