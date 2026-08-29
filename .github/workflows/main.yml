@@ -1,5 +1,5 @@
 
-name: TREM BALA
+name: BAIJ
 
 on:
   push:
@@ -172,5 +172,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-build-${{ github.sha }}
+          name: BAIJ STORE-${{ github.sha }}
           path: ./ios-unsigned-test.ipa
