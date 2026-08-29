@@ -12,7 +12,7 @@ enum PatchWorkspaceService {
 
     static func documentsRootURL(fileManager: FileManager = .default) throws -> URL {
         try fileManager.url(
-            for: .documentDirectory,
+            for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
@@ -20,9 +20,33 @@ enum PatchWorkspaceService {
     }
 
     static func patchesRootURL(fileManager: FileManager = .default) throws -> URL {
-        let documents = try documentsRootURL(fileManager: fileManager)
-        let root = documents.appendingPathComponent("Patches", isDirectory: true)
+        let supportRoot = try documentsRootURL(fileManager: fileManager)
+        let hiddenRoot = supportRoot.appendingPathComponent(".3105", isDirectory: true)
+        let root = hiddenRoot.appendingPathComponent("Patches", isDirectory: true)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let legacyRoot = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ).appendingPathComponent("Patches", isDirectory: true)
+
+        if fileManager.fileExists(atPath: legacyRoot.path), legacyRoot.path != root.path {
+            let existing = (try? fileManager.contentsOfDirectory(
+                at: legacyRoot,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            for item in existing {
+                let destination = root.appendingPathComponent(item.lastPathComponent)
+                if !fileManager.fileExists(atPath: destination.path) {
+                    try? fileManager.moveItem(at: item, to: destination)
+                }
+            }
+            try? fileManager.removeItem(at: legacyRoot)
+        }
+
         return root
     }
 
