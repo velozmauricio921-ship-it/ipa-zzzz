@@ -9,7 +9,6 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
     @State private var showAttribution = false
-    @State private var postLicenseBootstrapRan = false
     // Start locked until we verify or user logs in
     @State private var showLicenseGate = true
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
@@ -36,30 +35,6 @@ struct ThreeOneOSFiveApp: App {
     private func preloadBundlePatches() {
         PatchProjectLibrary.ensurePreloadedPackagesInstalled()
         NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
-    }
-
-    private func completePostLicenseBootstrap() {
-        guard !postLicenseBootstrapRan else { return }
-        postLicenseBootstrapRan = true
-
-        // Safe build: never invoke exploit/sandbox checks after the license gate.
-        // Keep the app in a fail-closed mode to avoid crashes caused by native exploit code.
-        checkForUpdate()
-        preloadBundlePatches()
-
-        if !LicenseGateStore.savedLicense().isEmpty {
-            Task {
-                await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
-            }
-        } else if !rememberLicense {
-            showLicenseGate = true
-        }
-
-        NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
-            withAnimation(.easeInOut(duration: 0.25)) {
-                showLicenseGate = !LicenseGateStore.isValid()
-            }
-        }
     }
 
     // Validate saved license and toggle the license gate appropriately.
@@ -113,9 +88,6 @@ struct ThreeOneOSFiveApp: App {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             showLicenseGate = false
                         }
-                        DispatchQueue.main.async {
-                            completePostLicenseBootstrap()
-                        }
                     }
                     .transition(.opacity)
                     .zIndex(2)
@@ -135,7 +107,6 @@ struct ThreeOneOSFiveApp: App {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
                                 showOnboarding = false
                             }
-                            // Avoid automatically invoking the kernel exploit on launch.
                             appState.detectSupport()
                             checkForUpdate()
                         }
@@ -163,8 +134,26 @@ struct ThreeOneOSFiveApp: App {
                 )
             }
             .onAppear {
-                if !showOnboarding, !showLicenseGate {
-                    completePostLicenseBootstrap()
+                if !showOnboarding {
+                    appState.detectSupport()
+                    checkForUpdate()
+                    preloadBundlePatches()
+                    // If a saved license exists, refresh its state/expiry from KeyAuth.
+                    // Only allow the validation to open the gate automatically when the user chose to remember the license.
+                    if !LicenseGateStore.savedLicense().isEmpty {
+                        Task {
+                            await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
+                        }
+                    } else if !rememberLicense {
+                        showLicenseGate = true
+                    }
+
+                    // Observe license store changes to toggle license gate
+                    NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showLicenseGate = !LicenseGateStore.isValid()
+                        }
+                    }
                 }
             }
             .onDisappear {
@@ -242,26 +231,70 @@ class AppState: ObservableObject {
             return
         }
 
-        // Safe mode: never deal with exploit/sandbox detection in this build.
-        exploitStatus = .notStarted
-        unsupportedMessage = nil
+        let applicable = KernelExploit.isApplicable(
+            major: v.major,
+            minor: v.minor,
+            patch: v.patch,
+            build: AppInfo.osBuild
+        )
+        guard applicable else { return }
+
+        refreshKernelExploitStatus()
+        maybeAutoRunKernelExploit()
     }
 
     private func maybeAutoRunKernelExploit() {
-        // Exploit must never run automatically. This function is intentionally inert.
-        log("app: explicit exploit launch is required; automatic startup execution has been disabled")
+        guard !kernelExploitRunning,
+              !exploitStatus.isSuccess,
+              !exploitStatus.isFailed,
+              !autoRunAttempted else { return }
+        autoRunAttempted = true
+        log("app: starting kernel exploit automatically")
+        runKernelExploitIfNeeded()
     }
 
     private func refreshKernelExploitStatus() {
-        // Safe mode: exploit state is intentionally ignored.
-        kernelExploitRunning = false
-        exploitStatus = .notStarted
+        guard !kernelExploitRunning else { return }
+
+        // iOS < 26: kernel R/W success persists (no sandbox probe)
+        // iOS >= 26: verify full sandbox escape is still active
+        if KernelExploit.requiresSandboxEscape {
+            if KernelExploit.hasSandboxAccess() {
+                if !exploitStatus.isSuccess {
+                    exploitStatus = .success(method: "kexploit")
+                    log("app: existing sandbox access is still active; skipping kernel exploit")
+                }
+            } else if exploitStatus.isSuccess {
+                exploitStatus = .notStarted
+                log("app: sandbox access is no longer active")
+            }
+        }
     }
 
     func runKernelExploitIfNeeded() {
-        // Hard safety gate: exploit execution is disabled in this build.
-        kernelExploitRunning = false
+        refreshKernelExploitStatus()
+        guard !kernelExploitRunning,
+              !exploitStatus.isSuccess,
+              !exploitStatus.isFailed else { return }
+        kernelExploitRunning = true
         exploitStatus = .notStarted
-        log("app: kernel exploit execution disabled in this build; no automatic launch allowed")
+        log("app: running kernel exploit on background...")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = KernelExploit.run()
+            DispatchQueue.main.async {
+                self.kernelExploitRunning = false
+                if ok {
+                    self.exploitStatus = .success(method: "kexploit")
+                    if KernelExploit.requiresSandboxEscape {
+                        log("app: kernel exploit success — sandbox access verified")
+                    } else {
+                        log("app: kernel exploit success — kernel access active")
+                    }
+                } else {
+                    self.exploitStatus = .failed(method: "kexploit", code: -1)
+                    log("app: kernel exploit failed — relaunch the app before retrying")
+                }
+            }
+        }
     }
 }
