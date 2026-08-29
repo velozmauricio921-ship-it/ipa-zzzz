@@ -194,7 +194,8 @@ struct PatchProjectsView: View {
                 VStack(spacing: 0) {
                     Divider()
                     HStack(spacing: 12) {
-                        Text(selectedItem.project?.name ?? language.text("patch.title"))
+                        let selectedTitle = selectedItem.packageURL.deletingPathExtension().lastPathComponent
+                        Text(selectedTitle.isEmpty ? (selectedItem.project?.name ?? language.text("patch.title")) : selectedTitle)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Spacer()
@@ -451,8 +452,10 @@ private struct PatchProjectRow: View {
     var body: some View {
         HStack(spacing: 12) {
             AppRowIcon(systemName: item.isLocked ? "lock.doc.fill" : "shippingbox.fill")
-            VStack(alignment: .leading, spacing: 4) {
-                Text((item.project?.name ?? language.text("patch.locked_project")).uppercased())
+                VStack(alignment: .leading, spacing: 4) {
+                // Prefer displaying the package filename (as in the repo) so names match after build.
+                let fileTitle = item.packageURL.deletingPathExtension().lastPathComponent
+                Text((fileTitle.isEmpty ? (item.project?.name ?? language.text("patch.locked_project")) : fileTitle).uppercased())
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
