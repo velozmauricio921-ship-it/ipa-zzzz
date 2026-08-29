@@ -1,5 +1,5 @@
 
-name: BAIJ
+name: iOS unsigned build
 
 on:
   push:
@@ -172,5 +172,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BAIJ STORE-${{ github.sha }}
-          path: ./BAIJ STORE.ipa
+          name: ios-unsigned-build-${{ github.sha }}
+          path: ./ios-unsigned-test.ipa
