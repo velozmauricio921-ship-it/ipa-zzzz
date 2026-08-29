@@ -9,6 +9,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var showOnboarding = OnboardingStore.shouldShow()
     @State private var showAttribution = false
+    @State private var postLicenseBootstrapRan = false
     // Start locked until we verify or user logs in
     @State private var showLicenseGate = true
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
@@ -35,6 +36,29 @@ struct ThreeOneOSFiveApp: App {
     private func preloadBundlePatches() {
         PatchProjectLibrary.ensurePreloadedPackagesInstalled()
         NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+    }
+
+    private func completePostLicenseBootstrap() {
+        guard !postLicenseBootstrapRan else { return }
+        postLicenseBootstrapRan = true
+
+        appState.detectSupport()
+        checkForUpdate()
+        preloadBundlePatches()
+
+        if !LicenseGateStore.savedLicense().isEmpty {
+            Task {
+                await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
+            }
+        } else if !rememberLicense {
+            showLicenseGate = true
+        }
+
+        NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showLicenseGate = !LicenseGateStore.isValid()
+            }
+        }
     }
 
     // Validate saved license and toggle the license gate appropriately.
@@ -88,6 +112,9 @@ struct ThreeOneOSFiveApp: App {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             showLicenseGate = false
                         }
+                        DispatchQueue.main.async {
+                            completePostLicenseBootstrap()
+                        }
                     }
                     .transition(.opacity)
                     .zIndex(2)
@@ -134,26 +161,8 @@ struct ThreeOneOSFiveApp: App {
                 )
             }
             .onAppear {
-                if !showOnboarding {
-                    appState.detectSupport()
-                    checkForUpdate()
-                    preloadBundlePatches()
-                    // If a saved license exists, refresh its state/expiry from KeyAuth.
-                    // Only allow the validation to open the gate automatically when the user chose to remember the license.
-                    if !LicenseGateStore.savedLicense().isEmpty {
-                        Task {
-                            await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
-                        }
-                    } else if !rememberLicense {
-                        showLicenseGate = true
-                    }
-
-                    // Observe license store changes to toggle license gate
-                    NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showLicenseGate = !LicenseGateStore.isValid()
-                        }
-                    }
+                if !showOnboarding, !showLicenseGate {
+                    completePostLicenseBootstrap()
                 }
             }
             .onDisappear {
