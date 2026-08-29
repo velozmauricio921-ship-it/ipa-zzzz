@@ -16,6 +16,7 @@ struct PatchProjectsView: View {
     @State private var showImporter = false
     @State private var searchText = ""
     @State private var selectedID: UUID?
+    @State private var selectedCategory = "No Exploit"
     @State private var isWorkingAction = false
     @State private var receiptRefresh = UUID()
     @State private var actionAlert: PatchStoreAlert?
@@ -44,6 +45,75 @@ struct PatchProjectsView: View {
         }
     }
 
+    private var groupedFilteredItems: [PatchCategoryGroup] {
+        let groups = Dictionary(grouping: filteredItems) { item in
+            item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "General"
+                : item.categoryName
+        }
+
+        return groups
+            .sorted { left, right in
+                if left.key.lowercased() == "general" { return false }
+                if right.key.lowercased() == "general" { return true }
+                return left.key.localizedCaseInsensitiveCompare(right.key) == .orderedAscending
+            }
+            .map { key, items in
+                PatchCategoryGroup(
+                    id: key,
+                    category: key,
+                    items: items.sorted {
+                        ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
+                    }
+                )
+            }
+    }
+
+    private var categoryOptions: [String] {
+        let staticOrder = ["No Exploit", "Free Fire", "Free Fire Max", "Aim", "Visuals"]
+        let discovered = Set(store.items.map { $0.categoryName }).filter { !$0.isEmpty }
+        return staticOrder.filter { option in
+            option == "No Exploit" || discovered.contains(option)
+        }
+    }
+
+    private var visibleCategoryItems: [PatchLibraryItem] {
+        let source = filteredItems.isEmpty ? store.items : filteredItems
+
+        func matches(_ item: PatchLibraryItem, for option: String) -> Bool {
+            let normalizedCategory = item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let path = item.packageURL.path.lowercased()
+
+            switch option {
+            case "No Exploit":
+                return normalizedCategory == "No Exploit"
+                    || path.contains("/no exploit/")
+                    || normalizedCategory == "General"
+            case "Free Fire":
+                return normalizedCategory == "Free Fire"
+                    || normalizedCategory == "Aim"
+                    || normalizedCategory == "Visuals"
+                    || (path.contains("/free fire/") && !path.contains("/free fire max/"))
+            case "Free Fire Max":
+                return normalizedCategory == "Free Fire Max"
+                    || normalizedCategory == "Aim Max"
+                    || normalizedCategory == "Visuals Max"
+                    || path.contains("/free fire max/")
+            case "Aim":
+                return normalizedCategory == "Aim" || path.contains("/aim/")
+            case "Visuals":
+                return normalizedCategory == "Visuals" || path.contains("/visuals/")
+            default:
+                return true
+            }
+        }
+
+        guard !categoryOptions.isEmpty else { return source }
+        return source.filter { item in
+            matches(item, for: selectedCategory)
+        }
+    }
+
     init() {
 #if targetEnvironment(simulator)
         _showCreate = State(
@@ -61,46 +131,102 @@ struct PatchProjectsView: View {
                     clearLabel: language.text("common.clear")
                 )
                 Divider()
-                List {
-                    if store.items.isEmpty && !store.isBusy {
-                        emptyState
-                            .listRowSeparator(.hidden)
-                    } else if filteredItems.isEmpty && !store.isBusy {
-                        searchEmptyState
-                            .listRowSeparator(.hidden)
-                    } else {
-                        ForEach(filteredItems) { item in
-                            Button(action: {
-                                // toggle selection (single-select)
-                                if selectedID == item.id {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(selectedCategory)
+                            .font(.system(size: 36, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, AppTheme.pageInset)
+                            .padding(.top, 8)
+
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ForEach(categoryOptions, id: \ .self) { option in
+                                Button {
+                                    selectedCategory = option
                                     selectedID = nil
-                                hasReceiptForSelected = false
-                                } else {
-                                    selectedID = item.id
-                                    hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: item.id) != nil
-                                    selectedID = item.id
+                                } label: {
+                                    Text(option)
+                                        .font(.system(size: 22, weight: .medium))
+                                        .frame(maxWidth: .infinity, minHeight: 52)
+                                        .foregroundStyle(option == selectedCategory ? .primary : .primary)
+                                        .padding(.horizontal, 16)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .fill(option == selectedCategory ? Color(uiColor: .secondarySystemFill) : Color.clear)
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .stroke(option == selectedCategory ? Color(uiColor: .systemGray4) : Color(uiColor: .systemGray4), lineWidth: 1)
+                                        )
                                 }
-                            }) {
-                                PatchProjectRow(item: item, language: language)
-                                    .overlay(
-                                        Group {
-                                            if selectedID == item.id {
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(AppTheme.accent, lineWidth: 2)
-                                                    .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
-                                            } else {
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.clear, lineWidth: 0)
-                                            }
-                                        }
-                                    )
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
-                        .onDelete { offsets in
-                            offsets.map { filteredItems[$0] }.forEach(store.delete)
+                        .padding(.horizontal, AppTheme.pageInset)
+
+                        Button {
+                            selectedCategory = "No Exploit"
+                            selectedID = nil
+                        } label: {
+                            Text("Reset")
+                                .font(.system(size: 22, weight: .semibold))
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .foregroundStyle(AppTheme.accent)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color(uiColor: .secondarySystemFill))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, AppTheme.pageInset)
+
+                        if store.items.isEmpty && !store.isBusy {
+                            emptyState
+                                .frame(maxWidth: .infinity)
+                        } else if visibleCategoryItems.isEmpty && !store.isBusy {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Free Fire")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                Text("Select an option above")
+                                    .font(.system(size: 20, weight: .regular))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, AppTheme.pageInset)
+                            .padding(.top, 8)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(visibleCategoryItems) { item in
+                                    Button(action: {
+                                        if selectedID == item.id {
+                                            selectedID = nil
+                                            hasReceiptForSelected = false
+                                        } else {
+                                            selectedID = item.id
+                                            hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: item.id) != nil
+                                        }
+                                    }) {
+                                        PatchProjectRow(item: item, language: language)
+                                            .overlay(
+                                                Group {
+                                                    if selectedID == item.id {
+                                                        RoundedRectangle(cornerRadius: 12)
+                                                            .stroke(AppTheme.accent, lineWidth: 2)
+                                                            .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
+                                                    } else {
+                                                        RoundedRectangle(cornerRadius: 12)
+                                                            .stroke(Color.clear, lineWidth: 0)
+                                                    }
+                                                }
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 0)
                         }
                     }
+                    .padding(.bottom, 18)
                 }
                 .listStyle(.insetGrouped)
             }
@@ -357,6 +483,12 @@ struct PatchProjectsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 64)
     }
+}
+
+struct PatchCategoryGroup: Identifiable {
+    let id: String
+    let category: String
+    let items: [PatchLibraryItem]
 }
 
 private struct PatchProjectRow: View {
