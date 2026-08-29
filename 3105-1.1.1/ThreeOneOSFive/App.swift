@@ -42,6 +42,7 @@ struct ThreeOneOSFiveApp: App {
         guard !postLicenseBootstrapRan else { return }
         postLicenseBootstrapRan = true
 
+        // Do not auto-run the exploit during app boot. Keep support detection non-invasive.
         appState.detectSupport()
         checkForUpdate()
         preloadBundlePatches()
@@ -134,6 +135,7 @@ struct ThreeOneOSFiveApp: App {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
                                 showOnboarding = false
                             }
+                            // Avoid automatically invoking the kernel exploit on launch.
                             appState.detectSupport()
                             checkForUpdate()
                         }
@@ -249,10 +251,13 @@ class AppState: ObservableObject {
         guard applicable else { return }
 
         refreshKernelExploitStatus()
-        maybeAutoRunKernelExploit()
+        // Intentionally do not auto-trigger the kernel exploit during normal startup.
+        // The exploit must be launched explicitly by a user-initiated flow, otherwise
+        // the app can crash or exit unexpectedly while the license gate is still resolving.
     }
 
     private func maybeAutoRunKernelExploit() {
+        // Kept only for explicit future flows; normal app boot never calls it.
         guard !kernelExploitRunning,
               !exploitStatus.isSuccess,
               !exploitStatus.isFailed,
