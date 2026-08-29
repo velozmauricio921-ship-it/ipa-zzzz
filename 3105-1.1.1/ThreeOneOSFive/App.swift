@@ -250,21 +250,14 @@ class AppState: ObservableObject {
         )
         guard applicable else { return }
 
+        // Manual-only exploit flow: no automatic launch from app startup, onboarding,
+        // scene activation, or license validation. This keeps the app stable for users.
         refreshKernelExploitStatus()
-        // Intentionally do not auto-trigger the kernel exploit during normal startup.
-        // The exploit must be launched explicitly by a user-initiated flow, otherwise
-        // the app can crash or exit unexpectedly while the license gate is still resolving.
     }
 
     private func maybeAutoRunKernelExploit() {
-        // Kept only for explicit future flows; normal app boot never calls it.
-        guard !kernelExploitRunning,
-              !exploitStatus.isSuccess,
-              !exploitStatus.isFailed,
-              !autoRunAttempted else { return }
-        autoRunAttempted = true
-        log("app: starting kernel exploit automatically")
-        runKernelExploitIfNeeded()
+        // Exploit must never run automatically. This function is intentionally inert.
+        log("app: explicit exploit launch is required; automatic startup execution has been disabled")
     }
 
     private func refreshKernelExploitStatus() {
