@@ -61,8 +61,7 @@ struct AppDataBrowserView: View {
             }
             .onAppear {
                 if workspaceURL == nil {
-                    workspaceURL = try? PatchWorkspaceService.documentsRootURL()
-                    _ = try? PatchWorkspaceService.patchesRootURL()
+                    workspaceURL = try? PatchWorkspaceService.patchesRootURL()
                 }
                 if !hasLoaded {
                     hasLoaded = true
