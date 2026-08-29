@@ -107,14 +107,10 @@ struct PatchProjectsView: View {
 
             case "Free Fire":
                 return normalizedCategory == "Free Fire"
-                    || normalizedCategory == "Aim"
-                    || normalizedCategory == "Visuals"
                     || (path.contains("/free fire/") && !path.contains("/free fire max/"))
 
             case "Free Fire Max":
                 return normalizedCategory == "Free Fire Max"
-                    || normalizedCategory == "Aim Max"
-                    || normalizedCategory == "Visuals Max"
                     || path.contains("/free fire max/")
 
             default:
@@ -128,13 +124,13 @@ struct PatchProjectsView: View {
 
             switch selectedSubCategory {
             case "Aim":
-                return normalizedCategory == "Aim" || path.contains("/free fire/aim/") || path.contains("/aim/")
+                return normalizedCategory == "Aim" || path.contains("/free fire/aim/")
             case "Visuals":
-                return normalizedCategory == "Visuals" || path.contains("/free fire/visuals/") || path.contains("/visuals/")
+                return normalizedCategory == "Visuals" || path.contains("/free fire/visuals/")
             case "Aim Max":
-                return normalizedCategory == "Aim Max" || path.contains("/free fire max/aim max/") || path.contains("/aim max/")
+                return normalizedCategory == "Aim Max" || path.contains("/free fire max/aim max/")
             case "Visuals Max":
-                return normalizedCategory == "Visuals Max" || path.contains("/free fire max/visuals max/") || path.contains("/visuals max/")
+                return normalizedCategory == "Visuals Max" || path.contains("/free fire max/visuals max/")
             default:
                 return true
             }
