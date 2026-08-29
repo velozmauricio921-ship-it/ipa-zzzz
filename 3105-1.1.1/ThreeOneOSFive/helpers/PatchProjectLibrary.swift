@@ -357,23 +357,6 @@ enum PatchProjectLibrary {
             for stale in stalePreloadedFiles {
                 try? fileManager.removeItem(at: stale)
             }
-
-            // Also clean stale copies from any nested folder under PatchProjects, not just the root.
-            if let enumerator = fileManager.enumerator(
-                at: libraryRoot,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles],
-                errorHandler: nil
-            ) {
-                for case let itemURL as URL in enumerator {
-                    guard itemURL.pathExtension.lowercased() == "3105",
-                          bundleNames.contains(itemURL.lastPathComponent),
-                          itemURL.deletingLastPathComponent().path != preloadedRoot.path else {
-                        continue
-                    }
-                    try? fileManager.removeItem(at: itemURL)
-                }
-            }
         } catch {
             log("preload: failed to prune stale library copies")
         }
