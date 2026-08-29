@@ -90,11 +90,16 @@ enum PatchProjectLibrary {
             options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
         )) ?? []
 
-        let preloadedURLs = (try? fileManager.contentsOfDirectory(
-            at: try preloadedRootURL(fileManager: fileManager),
-            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        )) ?? []
+        let preloadedURLs: [URL]
+        if let recursive = try? fileManager.recursiveFiles(in: try preloadedRootURL(fileManager: fileManager), matchingExtension: "3105") {
+            preloadedURLs = recursive
+        } else {
+            preloadedURLs = (try? fileManager.contentsOfDirectory(
+                at: try preloadedRootURL(fileManager: fileManager),
+                includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+            )) ?? []
+        }
 
         let urls = rootURLs + preloadedURLs
 
