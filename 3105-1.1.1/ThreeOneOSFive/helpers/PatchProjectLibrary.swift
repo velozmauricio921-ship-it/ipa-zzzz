@@ -5,6 +5,7 @@ struct PatchLibraryItem: Identifiable {
     var project: PatchProject?
     var contentKey: Data?
     var packageURL: URL
+    var categoryName: String
 
     var id: UUID { summary.packageID }
     var isLocked: Bool { project == nil }
@@ -82,6 +83,7 @@ enum PatchProjectLibrary {
         ensurePreloadedPackagesInstalled(fileManager: fileManager)
 
         guard let root = try? packageRootURL(fileManager: fileManager) else { return [] }
+        let preloadedRoot = (try? preloadedRootURL(fileManager: fileManager)) ?? root
 
         let rootURLs = (try? fileManager.contentsOfDirectory(
             at: root,
@@ -89,11 +91,7 @@ enum PatchProjectLibrary {
             options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
         )) ?? []
 
-        let preloadedURLs = (try? fileManager.contentsOfDirectory(
-            at: try preloadedRootURL(fileManager: fileManager),
-            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        )) ?? []
+        let preloadedURLs = recursivePackageURLs(in: preloadedRoot, fileManager: fileManager)
 
         let urls = rootURLs + preloadedURLs
 
@@ -102,7 +100,7 @@ enum PatchProjectLibrary {
             do {
                 let data = try readPackage(at: url)
                 let summary = try PatchPackageCodec.inspect(data)
-                // Require contentKey in secure keychain for non-password-protected packages.
+                let categoryName = inferredCategoryName(for: url, libraryRoot: root, preloadedRoot: preloadedRoot)
                 let decoded: DecodedPatchPackage?
                 if let contentKey = try? PatchKeyStore.load(for: summary) {
                     decoded = try PatchPackageCodec.decode(data, contentKey: contentKey)
@@ -117,7 +115,8 @@ enum PatchProjectLibrary {
                     summary: summary,
                     project: decoded?.project,
                     contentKey: decoded?.contentKey,
-                    packageURL: url
+                    packageURL: url,
+                    categoryName: categoryName
                 )
                 if summary.schemaVersion >= 2, let project = decoded?.project {
                     do {
@@ -134,6 +133,49 @@ enum PatchProjectLibrary {
         return byID.values.sorted {
             ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
         }
+    }
+
+    private static func recursivePackageURLs(
+        in root: URL,
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )
+        return enumerator?.compactMap { element in
+            guard let url = element as? URL,
+                  url.pathExtension.lowercased() == "3105",
+                  !url.path.contains("/.3105-") else {
+                return nil
+            }
+            return url
+        } ?? []
+    }
+
+    private static func inferredCategoryName(
+        for url: URL,
+        libraryRoot: URL,
+        preloadedRoot: URL
+    ) -> String {
+        let path = url.deletingLastPathComponent().path
+
+        if path.hasPrefix(preloadedRoot.path) {
+            let relative = path.replacingOccurrences(of: preloadedRoot.path, with: "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if !relative.isEmpty {
+                return relative.split(separator: "/").last.map(String.init) ?? "General"
+            }
+        }
+
+        if path.hasPrefix(libraryRoot.path) {
+            let relative = path.replacingOccurrences(of: libraryRoot.path, with: "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if !relative.isEmpty {
+                return relative.split(separator: "/").last.map(String.init) ?? "General"
+            }
+        }
+
+        return "General"
     }
 
     static func readPackage(at url: URL) throws -> Data {
@@ -280,7 +322,7 @@ enum PatchProjectLibrary {
                let urls = try? fileManager.contentsOfDirectory(
                 at: directPreloaded,
                 includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+                options: [.skipsHiddenFiles]
                ) {
                 bundleURLs += urls.filter { $0.pathExtension.lowercased() == "3105" }
             }
@@ -288,6 +330,10 @@ enum PatchProjectLibrary {
             if bundleURLs.isEmpty,
                let recursive = try? fileManager.recursiveFiles(in: resourceRoot, matchingExtension: "3105") {
                 bundleURLs += recursive.filter { $0.path.contains("/Preloaded/") || $0.deletingLastPathComponent().lastPathComponent == "Preloaded" }
+            }
+
+            if let nested = try? fileManager.recursiveFiles(in: directPreloaded, matchingExtension: "3105") {
+                bundleURLs += nested.filter { $0.path.hasPrefix(directPreloaded.path) }
             }
         }
 
@@ -305,8 +351,13 @@ enum PatchProjectLibrary {
         let bundleNames = Set(uniqueBundleURLs.map { $0.lastPathComponent })
 
         for sourceURL in uniqueBundleURLs.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            let destinationURL = preloadedRoot.appendingPathComponent(sourceURL.lastPathComponent)
+            let sourceRoot = Bundle.main.resourceURL?.appendingPathComponent("Preloaded", isDirectory: true)
+            let relativePath = sourceURL.path.hasPrefix(sourceRoot?.path ?? "")
+                ? sourceURL.path.replacingOccurrences(of: sourceRoot?.path ?? "", with: "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                : sourceURL.lastPathComponent
+            let destinationURL = preloadedRoot.appendingPathComponent(relativePath)
             do {
+                try fileManager.createDirectory(at: destinationURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                 if fileManager.fileExists(atPath: destinationURL.path) {
                     try fileManager.removeItem(at: destinationURL)
                 }
