@@ -20,21 +20,6 @@
         <string>1.1.1</string>
         <key>CFBundleVersion</key>
         <string>7</string>
-        <key>CFBundleDocumentTypes</key>
-        <array>
-            <dict>
-                <key>CFBundleTypeName</key>
-                <string>3105 Patch Package</string>
-                <key>CFBundleTypeRole</key>
-                <string>Editor</string>
-                <key>LSHandlerRank</key>
-                <string>Owner</string>
-                <key>LSItemContentTypes</key>
-                <array>
-                    <string>com.yangjiii.3105.patch-package</string>
-                </array>
-            </dict>
-        </array>
         <key>CFBundleURLTypes</key>
         <array>
             <dict>
@@ -44,28 +29,6 @@
                 <array>
                     <string>threeoneosfive</string>
                 </array>
-            </dict>
-        </array>
-        <key>UTExportedTypeDeclarations</key>
-        <array>
-            <dict>
-                <key>UTTypeConformsTo</key>
-                <array>
-                    <string>public.data</string>
-                </array>
-                <key>UTTypeDescription</key>
-                <string>3105 Patch Package</string>
-                <key>UTTypeIdentifier</key>
-                <string>com.yangjiii.3105.patch-package</string>
-                <key>UTTypeTagSpecification</key>
-                <dict>
-                    <key>public.filename-extension</key>
-                    <array>
-                        <string>3105</string>
-                    </array>
-                    <key>public.mime-type</key>
-                    <string>application/x-3105-patch</string>
-                </dict>
             </dict>
         </array>
         <key>LSSupportsOpeningDocumentsInPlace</key>
@@ -79,7 +42,7 @@
         <key>NSPhotoLibraryUsageDescription</key>
         <string>3105 needs access to photos for wallpaper customization.</string>
         <key>NSDocumentsFolderUsageDescription</key>
-        <string>3105 needs access to documents.</string>
+        <string>3105 needs access to documents for importing patch files.</string>
         <key>UIApplicationSceneManifest</key>
         <dict>
             <key>UIApplicationSupportsMultipleScenes</key>
