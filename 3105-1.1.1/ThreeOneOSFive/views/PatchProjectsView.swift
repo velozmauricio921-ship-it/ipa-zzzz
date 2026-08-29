@@ -16,18 +16,28 @@ struct PatchProjectsView: View {
     @State private var showImporter = false
     @State private var searchText = ""
     @State private var selectedID: UUID?
-    @State private var selectedPrimaryCategory = "No Exploit"
-    @State private var selectedSubCategory = ""
     @State private var isWorkingAction = false
     @State private var receiptRefresh = UUID()
     @State private var actionAlert: PatchStoreAlert?
     @State private var hasReceiptForSelected = false
     @State private var restoreFailureCounts: [UUID: Int] = [:]
+    @State private var selectedGroup: String? = nil
+    @State private var selectedSubgroup: String? = nil
 
     private var filteredItems: [PatchLibraryItem] {
+        // Start from full list and apply category/subcategory filtering first
+        var items = store.items
+        if let group = selectedGroup {
+            items = items.filter { $0.categories.first == group }
+        }
+        if let subgroup = selectedSubgroup {
+            items = items.filter { $0.categories.count > 1 && $0.categories[1] == subgroup }
+        }
+
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return store.items }
-        return store.items.filter { item in
+        guard !query.isEmpty else { return items }
+
+        return items.filter { item in
             if item.packageURL.lastPathComponent.localizedCaseInsensitiveContains(query) {
                 return true
             }
@@ -46,99 +56,18 @@ struct PatchProjectsView: View {
         }
     }
 
-    private var groupedFilteredItems: [PatchCategoryGroup] {
-        let groups = Dictionary(grouping: filteredItems) { item in
-            item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? "General"
-                : item.categoryName
-        }
-
-        return groups
-            .sorted { left, right in
-                if left.key.lowercased() == "general" { return false }
-                if right.key.lowercased() == "general" { return true }
-                return left.key.localizedCaseInsensitiveCompare(right.key) == .orderedAscending
-            }
-            .map { key, items in
-                PatchCategoryGroup(
-                    id: key,
-                    category: key,
-                    items: items.sorted {
-                        ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
-                    }
-                )
-            }
+    private var availableGroups: [String] {
+        let groups = Set(store.items.compactMap { $0.categories.first })
+        return Array(groups).sorted()
     }
 
-    private var primaryCategories: [String] {
-        ["No Exploit", "Free Fire", "Free Fire Max"]
-    }
-
-    private var subCategoryOptions: [String] {
-        switch selectedPrimaryCategory {
-        case "Free Fire":
-            return ["Aim", "Visuals"]
-        case "Free Fire Max":
-            return ["Aim Max", "Visuals Max"]
-        default:
-            return []
-        }
-    }
-
-    private var selectedCategoryTitle: String {
-        if !selectedSubCategory.isEmpty {
-            return selectedSubCategory
-        }
-        return selectedPrimaryCategory
-    }
-
-    private var visibleCategoryItems: [PatchLibraryItem] {
-        let source = filteredItems.isEmpty ? store.items : filteredItems
-
-        func matchesPrimary(_ item: PatchLibraryItem) -> Bool {
-            let normalizedCategory = item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let path = item.packageURL.path.lowercased()
-
-            switch selectedPrimaryCategory {
-            case "No Exploit":
-                return normalizedCategory == "No Exploit"
-                    || path.contains("/no exploit/")
-                    || normalizedCategory == "General"
-
-            case "Free Fire":
-                return normalizedCategory == "Free Fire"
-                    || (path.contains("/free fire/") && !path.contains("/free fire max/"))
-
-            case "Free Fire Max":
-                return normalizedCategory == "Free Fire Max"
-                    || path.contains("/free fire max/")
-
-            default:
-                return true
-            }
-        }
-
-        func matchesSubCategory(_ item: PatchLibraryItem) -> Bool {
-            let normalizedCategory = item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let path = item.packageURL.path.lowercased()
-
-            switch selectedSubCategory {
-            case "Aim":
-                return normalizedCategory == "Aim" || path.contains("/free fire/aim/")
-            case "Visuals":
-                return normalizedCategory == "Visuals" || path.contains("/free fire/visuals/")
-            case "Aim Max":
-                return normalizedCategory == "Aim Max" || path.contains("/free fire max/aim max/")
-            case "Visuals Max":
-                return normalizedCategory == "Visuals Max" || path.contains("/free fire max/visuals max/")
-            default:
-                return true
-            }
-        }
-
-        return source.filter { item in
-            matchesPrimary(item) && matchesSubCategory(item)
-        }
+    private func availableSubgroups(for group: String) -> [String] {
+        let subs = Set(store.items.compactMap { item -> String? in
+            let cats = item.categories
+            guard cats.first == group, cats.count > 1 else { return nil }
+            return cats[1]
+        })
+        return Array(subs).sorted()
     }
 
     init() {
@@ -157,132 +86,106 @@ struct PatchProjectsView: View {
                     prompt: language.text("patch.search"),
                     clearLabel: language.text("common.clear")
                 )
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(selectedPrimaryCategory)
-                            .font(.system(size: 36, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, AppTheme.pageInset)
-                            .padding(.top, 8)
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ForEach(primaryCategories, id: \ .self) { option in
-                                Button {
-                                    selectedPrimaryCategory = option
-                                    selectedID = nil
-                                    selectedSubCategory = defaultSubCategory(for: option)
-                                } label: {
-                                    Text(option)
-                                        .font(.system(size: 22, weight: .medium))
-                                        .frame(maxWidth: .infinity, minHeight: 52)
-                                        .foregroundStyle(option == selectedPrimaryCategory ? .primary : .primary)
-                                        .padding(.horizontal, 16)
+                // Category pickers (preserve styling; segmented where reasonable)
+                if !availableGroups.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(availableGroups, id: \.self) { g in
+                                Button(action: {
+                                    if selectedGroup == g {
+                                        selectedGroup = nil
+                                        selectedSubgroup = nil
+                                    } else {
+                                        selectedGroup = g
+                                        // reset subgroup when switching group
+                                        selectedSubgroup = nil
+                                    }
+                                }) {
+                                    Text(g)
+                                        .font(.subheadline)
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 12)
                                         .background(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .fill(option == selectedPrimaryCategory ? Color(uiColor: .secondarySystemFill) : Color.clear)
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(selectedGroup == g ? AppTheme.accent : Color(uiColor: .secondarySystemBackground))
                                         )
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .stroke(option == selectedPrimaryCategory ? Color(uiColor: .systemGray4) : Color(uiColor: .systemGray4), lineWidth: 1)
-                                        )
+                                        .foregroundStyle(selectedGroup == g ? .white : .primary)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, AppTheme.pageInset)
-
-                        if !subCategoryOptions.isEmpty {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                ForEach(subCategoryOptions, id: \ .self) { option in
-                                    Button {
-                                        selectedSubCategory = option
-                                        selectedID = nil
-                                    } label: {
-                                        Text(option)
-                                            .font(.system(size: 22, weight: .medium))
-                                            .frame(maxWidth: .infinity, minHeight: 52)
-                                            .foregroundStyle(option == selectedSubCategory ? .primary : .primary)
-                                            .padding(.horizontal, 16)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .fill(option == selectedSubCategory ? Color(uiColor: .secondarySystemFill) : Color.clear)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .stroke(option == selectedSubCategory ? Color(uiColor: .systemGray4) : Color(uiColor: .systemGray4), lineWidth: 1)
-                                            )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, AppTheme.pageInset)
-                        }
-
-                        Button {
-                            selectedPrimaryCategory = "No Exploit"
-                            selectedSubCategory = ""
-                            selectedID = nil
-                        } label: {
-                            Text("Reset")
-                                .font(.system(size: 22, weight: .semibold))
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .foregroundStyle(AppTheme.accent)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(uiColor: .secondarySystemFill))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, AppTheme.pageInset)
-
-                        if store.items.isEmpty && !store.isBusy {
-                            emptyState
-                                .frame(maxWidth: .infinity)
-                        } else if visibleCategoryItems.isEmpty && !store.isBusy {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(selectedPrimaryCategory)
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                                Text("Select an option above")
-                                    .font(.system(size: 20, weight: .regular))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, AppTheme.pageInset)
-                            .padding(.top, 8)
-                        } else {
-                            VStack(spacing: 10) {
-                                ForEach(visibleCategoryItems) { item in
-                                    Button(action: {
-                                        if selectedID == item.id {
-                                            selectedID = nil
-                                            hasReceiptForSelected = false
-                                        } else {
-                                            selectedID = item.id
-                                            hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: item.id) != nil
+                        .padding(.vertical, 8)
+                    }
+                    if let group = selectedGroup {
+                        let subs = availableSubgroups(for: group)
+                        if !subs.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(subs, id: \.self) { s in
+                                        Button(action: {
+                                            if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
+                                        }) {
+                                            Text(s)
+                                                .font(.subheadline)
+                                                .padding(.vertical, 6)
+                                                .padding(.horizontal, 10)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(selectedSubgroup == s ? AppTheme.accent : Color(uiColor: .secondarySystemBackground))
+                                                )
+                                                .foregroundStyle(selectedSubgroup == s ? .white : .primary)
                                         }
-                                    }) {
-                                        PatchProjectRow(item: item, language: language)
-                                            .overlay(
-                                                Group {
-                                                    if selectedID == item.id {
-                                                        RoundedRectangle(cornerRadius: 12)
-                                                            .stroke(AppTheme.accent, lineWidth: 2)
-                                                            .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
-                                                    } else {
-                                                        RoundedRectangle(cornerRadius: 12)
-                                                            .stroke(Color.clear, lineWidth: 0)
-                                                    }
-                                                }
-                                            )
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                 }
+                                .padding(.horizontal, AppTheme.pageInset)
+                                .padding(.bottom, 6)
                             }
-                            .padding(.horizontal, 0)
                         }
                     }
-                    .padding(.bottom, 18)
+                }
+                Divider()
+                List {
+                    if store.items.isEmpty && !store.isBusy {
+                        emptyState
+                            .listRowSeparator(.hidden)
+                    } else if filteredItems.isEmpty && !store.isBusy {
+                        searchEmptyState
+                            .listRowSeparator(.hidden)
+                    } else {
+                        ForEach(filteredItems) { item in
+                            Button(action: {
+                                // toggle selection (single-select)
+                                if selectedID == item.id {
+                                    selectedID = nil
+                                hasReceiptForSelected = false
+                                } else {
+                                    selectedID = item.id
+                                    hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: item.id) != nil
+                                    selectedID = item.id
+                                }
+                            }) {
+                                PatchProjectRow(item: item, language: language)
+                                    .overlay(
+                                        Group {
+                                            if selectedID == item.id {
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(AppTheme.accent, lineWidth: 2)
+                                                    .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
+                                            } else {
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(Color.clear, lineWidth: 0)
+                                            }
+                                        }
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { offsets in
+                            offsets.map { filteredItems[$0] }.forEach(store.delete)
+                        }
+                    }
                 }
                 .listStyle(.insetGrouped)
             }
@@ -483,17 +386,6 @@ struct PatchProjectsView: View {
         }
     }
 
-    private func defaultSubCategory(for primary: String) -> String {
-        switch primary {
-        case "Free Fire":
-            return "Aim"
-        case "Free Fire Max":
-            return "Aim Max"
-        default:
-            return ""
-        }
-    }
-
     private func consumeExternalImport() {
         guard let request = draftCoordinator.importRequest else { return }
         draftCoordinator.clearImport()
@@ -550,12 +442,6 @@ struct PatchProjectsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 64)
     }
-}
-
-struct PatchCategoryGroup: Identifiable {
-    let id: String
-    let category: String
-    let items: [PatchLibraryItem]
 }
 
 private struct PatchProjectRow: View {
