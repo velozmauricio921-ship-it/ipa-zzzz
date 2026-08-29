@@ -42,8 +42,8 @@ struct ThreeOneOSFiveApp: App {
         guard !postLicenseBootstrapRan else { return }
         postLicenseBootstrapRan = true
 
-        // Do not auto-run the exploit during app boot. Keep support detection non-invasive.
-        appState.detectSupport()
+        // Safe build: never invoke exploit/sandbox checks after the license gate.
+        // Keep the app in a fail-closed mode to avoid crashes caused by native exploit code.
         checkForUpdate()
         preloadBundlePatches()
 
@@ -242,17 +242,9 @@ class AppState: ObservableObject {
             return
         }
 
-        let applicable = KernelExploit.isApplicable(
-            major: v.major,
-            minor: v.minor,
-            patch: v.patch,
-            build: AppInfo.osBuild
-        )
-        guard applicable else { return }
-
-        // Manual-only exploit flow: no automatic launch from app startup, onboarding,
-        // scene activation, or license validation. This keeps the app stable for users.
-        refreshKernelExploitStatus()
+        // Safe mode: never deal with exploit/sandbox detection in this build.
+        exploitStatus = .notStarted
+        unsupportedMessage = nil
     }
 
     private func maybeAutoRunKernelExploit() {
@@ -261,26 +253,13 @@ class AppState: ObservableObject {
     }
 
     private func refreshKernelExploitStatus() {
-        guard !kernelExploitRunning else { return }
-
-        // iOS < 26: kernel R/W success persists (no sandbox probe)
-        // iOS >= 26: verify full sandbox escape is still active
-        if KernelExploit.requiresSandboxEscape {
-            if KernelExploit.hasSandboxAccess() {
-                if !exploitStatus.isSuccess {
-                    exploitStatus = .success(method: "kexploit")
-                    log("app: existing sandbox access is still active; skipping kernel exploit")
-                }
-            } else if exploitStatus.isSuccess {
-                exploitStatus = .notStarted
-                log("app: sandbox access is no longer active")
-            }
-        }
+        // Safe mode: exploit state is intentionally ignored.
+        kernelExploitRunning = false
+        exploitStatus = .notStarted
     }
 
     func runKernelExploitIfNeeded() {
         // Hard safety gate: exploit execution is disabled in this build.
-        // This prevents accidental startup or background launch from crashing the app.
         kernelExploitRunning = false
         exploitStatus = .notStarted
         log("app: kernel exploit execution disabled in this build; no automatic launch allowed")
