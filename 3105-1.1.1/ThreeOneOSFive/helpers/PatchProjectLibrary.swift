@@ -101,7 +101,14 @@ enum PatchProjectLibrary {
             )) ?? []
         }
 
-        let urls = rootURLs + preloadedURLs
+        let preloadedNames = Set(preloadedURLs.map { $0.lastPathComponent })
+        let filteredRootURLs = rootURLs.filter { url in
+            guard url.pathExtension.lowercased() == "3105" else { return false }
+            guard !url.path.contains("/Preloaded/") else { return false }
+            return !preloadedNames.contains(url.lastPathComponent)
+        }
+
+        let urls = filteredRootURLs + preloadedURLs
 
         var byID: [UUID: PatchLibraryItem] = [:]
         for url in urls where url.pathExtension.lowercased() == "3105" {
@@ -344,22 +351,8 @@ enum PatchProjectLibrary {
             }
         }
 
-        do {
-            let existing = try fileManager.contentsOfDirectory(
-                at: libraryRoot,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-            )
-            let stalePreloadedFiles = existing.filter {
-                $0.pathExtension.lowercased() == "3105" &&
-                bundleNames.contains($0.lastPathComponent)
-            }
-            for stale in stalePreloadedFiles {
-                try? fileManager.removeItem(at: stale)
-            }
-        } catch {
-            log("preload: failed to prune stale library copies")
-        }
+        // Intentionally left harmless: we do not delete user-facing patch files here.
+        // Only the canonical `Preloaded` cache is installed so that existing patches remain intact.
     }
 
     private static func sanitizedFilename(_ rawName: String) -> String {
