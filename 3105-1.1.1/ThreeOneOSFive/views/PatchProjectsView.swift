@@ -16,7 +16,8 @@ struct PatchProjectsView: View {
     @State private var showImporter = false
     @State private var searchText = ""
     @State private var selectedID: UUID?
-    @State private var selectedCategory = "No Exploit"
+    @State private var selectedPrimaryCategory = "No Exploit"
+    @State private var selectedSubCategory = ""
     @State private var isWorkingAction = false
     @State private var receiptRefresh = UUID()
     @State private var actionAlert: PatchStoreAlert?
@@ -69,48 +70,78 @@ struct PatchProjectsView: View {
             }
     }
 
-    private var categoryOptions: [String] {
-        let staticOrder = ["No Exploit", "Free Fire", "Free Fire Max", "Aim", "Visuals"]
-        let discovered = Set(store.items.map { $0.categoryName }).filter { !$0.isEmpty }
-        return staticOrder.filter { option in
-            option == "No Exploit" || discovered.contains(option)
+    private var primaryCategories: [String] {
+        ["No Exploit", "Free Fire", "Free Fire Max"]
+    }
+
+    private var subCategoryOptions: [String] {
+        switch selectedPrimaryCategory {
+        case "Free Fire":
+            return ["Aim", "Visuals"]
+        case "Free Fire Max":
+            return ["Aim Max", "Visuals Max"]
+        default:
+            return []
         }
+    }
+
+    private var selectedCategoryTitle: String {
+        if !selectedSubCategory.isEmpty {
+            return selectedSubCategory
+        }
+        return selectedPrimaryCategory
     }
 
     private var visibleCategoryItems: [PatchLibraryItem] {
         let source = filteredItems.isEmpty ? store.items : filteredItems
 
-        func matches(_ item: PatchLibraryItem, for option: String) -> Bool {
+        func matchesPrimary(_ item: PatchLibraryItem) -> Bool {
             let normalizedCategory = item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
             let path = item.packageURL.path.lowercased()
 
-            switch option {
+            switch selectedPrimaryCategory {
             case "No Exploit":
                 return normalizedCategory == "No Exploit"
                     || path.contains("/no exploit/")
                     || normalizedCategory == "General"
+
             case "Free Fire":
                 return normalizedCategory == "Free Fire"
                     || normalizedCategory == "Aim"
                     || normalizedCategory == "Visuals"
                     || (path.contains("/free fire/") && !path.contains("/free fire max/"))
+
             case "Free Fire Max":
                 return normalizedCategory == "Free Fire Max"
                     || normalizedCategory == "Aim Max"
                     || normalizedCategory == "Visuals Max"
                     || path.contains("/free fire max/")
-            case "Aim":
-                return normalizedCategory == "Aim" || path.contains("/aim/")
-            case "Visuals":
-                return normalizedCategory == "Visuals" || path.contains("/visuals/")
+
             default:
                 return true
             }
         }
 
-        guard !categoryOptions.isEmpty else { return source }
+        func matchesSubCategory(_ item: PatchLibraryItem) -> Bool {
+            let normalizedCategory = item.categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let path = item.packageURL.path.lowercased()
+
+            switch selectedSubCategory {
+            case "Aim":
+                return normalizedCategory == "Aim" || path.contains("/free fire/aim/") || path.contains("/aim/")
+            case "Visuals":
+                return normalizedCategory == "Visuals" || path.contains("/free fire/visuals/") || path.contains("/visuals/")
+            case "Aim Max":
+                return normalizedCategory == "Aim Max" || path.contains("/free fire max/aim max/") || path.contains("/aim max/")
+            case "Visuals Max":
+                return normalizedCategory == "Visuals Max" || path.contains("/free fire max/visuals max/") || path.contains("/visuals max/")
+            default:
+                return true
+            }
+        }
+
         return source.filter { item in
-            matches(item, for: selectedCategory)
+            matchesPrimary(item) && matchesSubCategory(item)
         }
     }
 
@@ -133,30 +164,31 @@ struct PatchProjectsView: View {
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(selectedCategory)
+                        Text(selectedPrimaryCategory)
                             .font(.system(size: 36, weight: .semibold))
                             .foregroundStyle(.primary)
                             .padding(.horizontal, AppTheme.pageInset)
                             .padding(.top, 8)
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ForEach(categoryOptions, id: \ .self) { option in
+                            ForEach(primaryCategories, id: \ .self) { option in
                                 Button {
-                                    selectedCategory = option
+                                    selectedPrimaryCategory = option
                                     selectedID = nil
+                                    selectedSubCategory = defaultSubCategory(for: option)
                                 } label: {
                                     Text(option)
                                         .font(.system(size: 22, weight: .medium))
                                         .frame(maxWidth: .infinity, minHeight: 52)
-                                        .foregroundStyle(option == selectedCategory ? .primary : .primary)
+                                        .foregroundStyle(option == selectedPrimaryCategory ? .primary : .primary)
                                         .padding(.horizontal, 16)
                                         .background(
                                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .fill(option == selectedCategory ? Color(uiColor: .secondarySystemFill) : Color.clear)
+                                                .fill(option == selectedPrimaryCategory ? Color(uiColor: .secondarySystemFill) : Color.clear)
                                         )
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .stroke(option == selectedCategory ? Color(uiColor: .systemGray4) : Color(uiColor: .systemGray4), lineWidth: 1)
+                                                .stroke(option == selectedPrimaryCategory ? Color(uiColor: .systemGray4) : Color(uiColor: .systemGray4), lineWidth: 1)
                                         )
                                 }
                                 .buttonStyle(.plain)
@@ -164,8 +196,36 @@ struct PatchProjectsView: View {
                         }
                         .padding(.horizontal, AppTheme.pageInset)
 
+                        if !subCategoryOptions.isEmpty {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(subCategoryOptions, id: \ .self) { option in
+                                    Button {
+                                        selectedSubCategory = option
+                                        selectedID = nil
+                                    } label: {
+                                        Text(option)
+                                            .font(.system(size: 22, weight: .medium))
+                                            .frame(maxWidth: .infinity, minHeight: 52)
+                                            .foregroundStyle(option == selectedSubCategory ? .primary : .primary)
+                                            .padding(.horizontal, 16)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .fill(option == selectedSubCategory ? Color(uiColor: .secondarySystemFill) : Color.clear)
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(option == selectedSubCategory ? Color(uiColor: .systemGray4) : Color(uiColor: .systemGray4), lineWidth: 1)
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, AppTheme.pageInset)
+                        }
+
                         Button {
-                            selectedCategory = "No Exploit"
+                            selectedPrimaryCategory = "No Exploit"
+                            selectedSubCategory = ""
                             selectedID = nil
                         } label: {
                             Text("Reset")
@@ -185,7 +245,7 @@ struct PatchProjectsView: View {
                                 .frame(maxWidth: .infinity)
                         } else if visibleCategoryItems.isEmpty && !store.isBusy {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Free Fire")
+                                Text(selectedPrimaryCategory)
                                     .font(.system(size: 15, weight: .medium))
                                     .foregroundStyle(.secondary)
                                 Text("Select an option above")
@@ -424,6 +484,17 @@ struct PatchProjectsView: View {
         .onAppear(perform: consumeExternalImport)
         .onChange(of: draftCoordinator.importRequest?.id) { _ in
             consumeExternalImport()
+        }
+    }
+
+    private func defaultSubCategory(for primary: String) -> String {
+        switch primary {
+        case "Free Fire":
+            return "Aim"
+        case "Free Fire Max":
+            return "Aim Max"
+        default:
+            return ""
         }
     }
 
