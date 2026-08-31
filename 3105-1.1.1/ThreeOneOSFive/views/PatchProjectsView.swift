@@ -19,7 +19,6 @@ struct PatchProjectsView: View {
     @State private var isWorkingAction = false
     @State private var receiptRefresh = UUID()
     @State private var actionAlert: PatchStoreAlert?
-    @State private var hasReceiptForSelected = false
     @State private var restoreFailureCounts: [UUID: Int] = [:]
     @State private var selectedGroup: String? = nil
     @State private var selectedSubgroup: String? = nil
@@ -68,6 +67,15 @@ struct PatchProjectsView: View {
             return cats[1]
         })
         return Array(subs).sorted()
+    }
+
+    private func refreshSelectionState() {
+        guard let selected = selectedID,
+              let item = store.items.first(where: { $0.id == selected }) else {
+            selectedID = nil
+            return
+        }
+        _ = DevicePatchService.latestReceipt(projectID: item.id)
     }
 
     init() {
@@ -156,14 +164,11 @@ struct PatchProjectsView: View {
                     } else {
                         ForEach(filteredItems) { item in
                             Button(action: {
-                                // toggle selection (single-select)
                                 if selectedID == item.id {
                                     selectedID = nil
-                                hasReceiptForSelected = false
                                 } else {
                                     selectedID = item.id
-                                    hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: item.id) != nil
-                                    selectedID = item.id
+                                    refreshSelectionState()
                                 }
                             }) {
                                 PatchProjectRow(item: item, language: language)
@@ -191,6 +196,7 @@ struct PatchProjectsView: View {
             }
             // Bottom action bar for selected feature (inside NavigationStack content)
             if let sel = selectedID, let selectedItem = store.items.first(where: { $0.id == sel }) {
+                let selectedHasReceipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
                 VStack(spacing: 0) {
                     Divider()
                     HStack(spacing: 12) {
@@ -202,7 +208,7 @@ struct PatchProjectsView: View {
                         if isWorkingAction {
                             ProgressView()
                         } else {
-                            if hasReceiptForSelected {
+                            if selectedHasReceipt {
                                 Button(role: .destructive) {
                                     Task.detached(priority: .userInitiated) {
                                         await MainActor.run { isWorkingAction = true }
@@ -212,6 +218,7 @@ struct PatchProjectsView: View {
                                                 print("[Patch] restore succeeded for project: \(selectedItem.id)")
                                                 await MainActor.run {
                                                     store.reload()
+                                                    refreshSelectionState()
                                                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
                                                     restoreFailureCounts[selectedItem.id] = 0
                                                 }
@@ -224,8 +231,6 @@ struct PatchProjectsView: View {
                                                 restoreFailureCounts[selectedItem.id, default: 0] += 1
                                                 let failures = restoreFailureCounts[selectedItem.id] ?? 0
                                                 if failures >= 2 {
-                                                    // force UI to show ACTIVAR to avoid stuck state
-                                                    hasReceiptForSelected = false
                                                     receiptRefresh = UUID()
                                                     restoreFailureCounts[selectedItem.id] = 0
                                                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.force_deactivated_message")
@@ -238,7 +243,6 @@ struct PatchProjectsView: View {
                                                 restoreFailureCounts[selectedItem.id, default: 0] += 1
                                                 let failures = restoreFailureCounts[selectedItem.id] ?? 0
                                                 if failures >= 2 {
-                                                    hasReceiptForSelected = false
                                                     receiptRefresh = UUID()
                                                     restoreFailureCounts[selectedItem.id] = 0
                                                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.force_deactivated_message")
@@ -248,7 +252,7 @@ struct PatchProjectsView: View {
                                         await MainActor.run {
                                             isWorkingAction = false
                                             receiptRefresh = UUID()
-                                            hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
+                                            refreshSelectionState()
                                         }
                                     }
                                 } label: {
@@ -272,6 +276,7 @@ struct PatchProjectsView: View {
                                             _ = try DevicePatchService.apply(project: project)
                                             await MainActor.run {
                                                 store.reload()
+                                                refreshSelectionState()
                                                 actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
                                             }
                                         } catch let error as PatchPackageError {
@@ -286,7 +291,7 @@ struct PatchProjectsView: View {
                                         await MainActor.run {
                                             isWorkingAction = false
                                             receiptRefresh = UUID()
-                                            hasReceiptForSelected = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
+                                            refreshSelectionState()
                                         }
                                     }
                                 } label: {
