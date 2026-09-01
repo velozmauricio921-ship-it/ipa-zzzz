@@ -1,5 +1,17 @@
 import Foundation
 
+// Provide a no-op fallback when `DylibPreloadBridge` isn't available to the build target.
+// If the real bridge is compiled into the app target (or exposed via a module), that
+// implementation will be used instead because `canImport(DylibPreloadBridge)` will be true.
+#if !canImport(DylibPreloadBridge)
+private struct DylibPreloadBridge {
+    static let shared = DylibPreloadBridge()
+    func installPreloadedPackages(into _: URL) throws {
+        // no-op shim for builds that don't include the runtime dylib bridge
+    }
+}
+#endif
+
 struct PatchLibraryItem: Identifiable {
     let summary: PatchPackageSummary
     var project: PatchProject?
