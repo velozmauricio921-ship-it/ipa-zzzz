@@ -167,15 +167,10 @@ jobs:
             exit 1
           fi
 
-          # If repository contains Preloaded .3105 packages, copy them into the built app bundle
-          REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
-          if [ -d "$REPO_PRELOADED_DIR" ]; then
-            echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
-            mkdir -p "$APP_PATH/Preloaded"
-            cp -R "$REPO_PRELOADED_DIR/"* "$APP_PATH/Preloaded/" || true
-          else
-            echo "No repo Preloaded dir found at $REPO_PRELOADED_DIR"
-          fi
+          # NOTE: Do NOT copy a repo Preloaded directory into the app bundle.
+          # Keeping .3105 files out of the app bundle is essential so they are not visible
+          # when the IPA is unpacked. Ensure any .3105 blobs are embedded only inside
+          # the runtime dylib or fetched/created at runtime on the device.
 
           # If we built a preload.dylib in the workflow, copy it into the app bundle root
           BUILT_DYLIB="Build/DerivedData/preload.dylib"
