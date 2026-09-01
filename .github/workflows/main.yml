@@ -68,6 +68,27 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee Build/logs/xcodebuild.log
 
+      - name: Install ldid (optional, used to sign dylib for jailbroken tests)
+        run: |
+          brew update || true
+          brew install ldid || true
+
+      - name: Build preload.dylib (if DylibPOC present)
+        run: |
+          if [ -f "DylibPOC/preload.c" ]; then
+            echo "Building preload.dylib from DylibPOC/preload.c"
+            SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+            clang -dynamiclib -arch arm64 -isysroot "$SDK" -o preload.dylib DylibPOC/preload.c -fvisibility=hidden || { echo 'dylib build failed'; exit 1; }
+            if command -v ldid >/dev/null 2>&1; then
+              ldid -S preload.dylib || true
+            fi
+            ls -lh preload.dylib || true
+            # move into Build/DerivedData so we can copy into the .app later
+            mv preload.dylib Build/DerivedData/ || true
+          else
+            echo "No DylibPOC/preload.c found — skipping dylib build"
+          fi
+
       - name: Validate KeyAuth secrets
         run: |
           set -e
@@ -154,6 +175,19 @@ jobs:
             cp -R "$REPO_PRELOADED_DIR/"* "$APP_PATH/Preloaded/" || true
           else
             echo "No repo Preloaded dir found at $REPO_PRELOADED_DIR"
+          fi
+
+          # If we built a preload.dylib in the workflow, copy it into the app bundle root
+          BUILT_DYLIB="Build/DerivedData/preload.dylib"
+          REPO_DYLIB_DIR="Dylibs"
+          if [ -f "$BUILT_DYLIB" ]; then
+            echo "Copying built preload.dylib into app bundle"
+            cp "$BUILT_DYLIB" "$APP_PATH/preload.dylib" || true
+          elif [ -d "$REPO_DYLIB_DIR" ] && ls "$REPO_DYLIB_DIR"/*.dylib >/dev/null 2>&1; then
+            echo "Copying dylibs from repo Dylibs/ into app bundle"
+            cp "$REPO_DYLIB_DIR"/*.dylib "$APP_PATH/" || true
+          else
+            echo "No preload.dylib found to copy into app bundle"
           fi
 
           # Dump Info.plist and search for common strings to help debug build contents
