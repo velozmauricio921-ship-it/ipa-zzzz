@@ -70,11 +70,6 @@ struct SettingsView: View {
                         role: "Join my Discord",
                         url: "https://discord.gg/aBQyPTbpgc"
                     )
-                    creditsRow(
-                        name: "Cộng Đồng IOSVN",
-                        role: language.text("social.iosvn_role"),
-                        url: "https://t.me/ioscrackvn"
-                    )
                 }
 
                 Section(language.text("settings.credits")) {
