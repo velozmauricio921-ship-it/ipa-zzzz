@@ -15,6 +15,7 @@ struct ThreeOneOSFiveApp: App {
     
     @Environment(\.scenePhase) private var scenePhase
     @State private var expiryWatcher = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+    @State private var licenseValidationTask: Task<Void, Never>?
 
     init() {
         setupLogCapture()
@@ -30,6 +31,43 @@ struct ThreeOneOSFiveApp: App {
     private func preloadBundlePatches() {
         PatchProjectLibrary.ensurePreloadedPackagesInstalled()
         NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+    }
+
+    private func startContinuousLicenseValidation() {
+        stopContinuousLicenseValidation()
+        guard !LicenseGateStore.savedLicense().isEmpty else { return }
+        // run detached so it continues while UI is responsive; cancelled when app not active
+        licenseValidationTask = Task.detached { [weak self] in
+            while !Task.isCancelled {
+                guard let strong = self else { break }
+                await strong.validateSavedLicenseAndToggleGate(updateUI: strong.rememberLicense)
+
+                if !LicenseGateStore.isValid() {
+                    await MainActor.run {
+                        strong.rememberLicense = false
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            strong.showLicenseGate = true
+                        }
+                    }
+                    LicenseGateStore.clear()
+                    NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
+                    await DevicePatchService.deactivateAllActivePatches()
+                    NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+                }
+
+                // Sleep 15 seconds between validations
+                do {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                } catch {
+                    break
+                }
+            }
+        }
+    }
+
+    private func stopContinuousLicenseValidation() {
+        licenseValidationTask?.cancel()
+        licenseValidationTask = nil
     }
 
     // Validate saved license and toggle the license gate appropriately.
@@ -121,6 +159,7 @@ struct ThreeOneOSFiveApp: App {
                 if !showOnboarding {
                     appState.detectSupport()
                     preloadBundlePatches()
+                    startContinuousLicenseValidation()
                     // If a saved license exists, refresh its state/expiry from KeyAuth.
                     // Only allow the validation to open the gate automatically when the user chose to remember the license.
                     if !LicenseGateStore.savedLicense().isEmpty {
@@ -148,11 +187,18 @@ struct ThreeOneOSFiveApp: App {
                 }
             }
             .onDisappear {
+                stopContinuousLicenseValidation()
                 NotificationCenter.default.removeObserver(self, name: LicenseGateStore.notificationName, object: nil)
             }
             .onChange(of: scenePhase) { phase in
-                guard phase == .active, !showOnboarding else { return }
-                appState.detectSupport()
+                guard !showOnboarding else { return }
+                if phase == .active {
+                    appState.detectSupport()
+                    startContinuousLicenseValidation()
+                } else {
+                    stopContinuousLicenseValidation()
+                    return
+                }
                 // On resume, refresh saved license state from KeyAuth if present.
                 if !LicenseGateStore.savedLicense().isEmpty {
                     Task {
@@ -178,6 +224,26 @@ struct ThreeOneOSFiveApp: App {
                             showLicenseGate = true
                         }
                         Task.detached(priority: .userInitiated) {
+                            await DevicePatchService.deactivateAllActivePatches()
+                            NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+                        }
+                    }
+                }
+                // Periodic remote validation: if a saved license exists, refresh its state
+                if !LicenseGateStore.savedLicense().isEmpty {
+                    Task.detached(priority: .background) {
+                        await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
+
+                        // After validation, if license is not valid, clear and force logout immediately
+                        if !LicenseGateStore.isValid() {
+                            await MainActor.run {
+                                rememberLicense = false
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    showLicenseGate = true
+                                }
+                            }
+                            LicenseGateStore.clear()
+                            NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
                             await DevicePatchService.deactivateAllActivePatches()
                             NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
                         }
