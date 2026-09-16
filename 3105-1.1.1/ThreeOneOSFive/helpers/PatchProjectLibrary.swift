@@ -297,10 +297,24 @@ enum PatchProjectLibrary {
         var bundleURLs: [URL] = []
 
         // Prefer a single packaged archive named `Preloaded.tendies` in the app bundle.
-        // This allows shipping preloaded packages inside a single compressed file so the
-        // `Preloaded` folder is not openly visible when the IPA is unpacked.
-        if let archiveURL = Bundle.main.url(forResource: "Preloaded", withExtension: "tendies") {
+        // Check multiple likely locations because CI may place the file at the bundle root
+        // or inside the resources directory.
+        var candidateArchiveURLs: [URL] = []
+        if let res = Bundle.main.url(forResource: "Preloaded", withExtension: "tendies") {
+            candidateArchiveURLs.append(res)
+        }
+        if let resourceRoot = Bundle.main.resourceURL {
+            let candidate = resourceRoot.appendingPathComponent("Preloaded.tendies")
+            candidateArchiveURLs.append(candidate)
+        }
+        // Also check bundle root (some CI placements put files directly in the .app root)
+        let bundleRootCandidate = Bundle.main.bundleURL.appendingPathComponent("Preloaded.tendies")
+        candidateArchiveURLs.append(bundleRootCandidate)
+
+        var extracted = false
+        for archiveURL in candidateArchiveURLs where fileManager.fileExists(atPath: archiveURL.path) {
             do {
+                log("preload: found archive candidate at \(archiveURL.path), extracting...")
                 try SecureZIPArchive.extract(archiveURL: archiveURL, destinationURL: preloadedRoot)
                 if let urls = try? fileManager.contentsOfDirectory(
                     at: preloadedRoot,
@@ -309,10 +323,17 @@ enum PatchProjectLibrary {
                 ) {
                     bundleURLs += urls.filter { $0.pathExtension.lowercased() == "3105" }
                 }
-                log("preload: extracted bundled Preloaded.tendies archive into cache")
+                log("preload: extracted bundled Preloaded.tendies archive into cache from \(archiveURL.path)")
+                extracted = true
+                break
             } catch {
-                log("preload: failed to extract bundled archive — \(error.localizedDescription)")
+                log("preload: failed to extract bundled archive at \(archiveURL.path) — \(error.localizedDescription)")
+                // try next candidate
             }
+        }
+
+        if !extracted {
+            log("preload: no usable Preloaded.tendies archive found in bundle locations")
         }
 
         // Fallback: if no packaged archive, look for a Preloaded directory inside bundle resources
