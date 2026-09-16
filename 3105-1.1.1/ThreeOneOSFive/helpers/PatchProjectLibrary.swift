@@ -296,7 +296,7 @@ enum PatchProjectLibrary {
 
         var bundleURLs: [URL] = []
 
-        // Prefer a single packaged archive named `Preloaded.tendies` in the app bundle.
+        // Prefer a single packaged archive named `Preloaded.tendies` (or encrypted .tendies.aes)
         // Check multiple likely locations because CI may place the file at the bundle root
         // or inside the resources directory.
         var candidateArchiveURLs: [URL] = []
@@ -315,7 +315,17 @@ enum PatchProjectLibrary {
         for archiveURL in candidateArchiveURLs where fileManager.fileExists(atPath: archiveURL.path) {
             do {
                 log("preload: found archive candidate at \(archiveURL.path), extracting...")
-                try SecureZIPArchive.extract(archiveURL: archiveURL, destinationURL: preloadedRoot)
+                // If the candidate is encrypted (.aes suffix), decrypt first
+                if archiveURL.pathExtension.lowercased() == "aes" {
+                    let decrypted = try PreloadDecryptor.decryptPrefixedAES(fileURL: archiveURL)
+                    // write decrypted to temp file so SecureZIPArchive can read
+                    let tmp = preloadedRoot.appendingPathComponent("__preloaded_tmp__.tendies")
+                    try decrypted.write(to: tmp, options: [.atomic])
+                    try SecureZIPArchive.extract(archiveURL: tmp, destinationURL: preloadedRoot)
+                    try? FileManager.default.removeItem(at: tmp)
+                } else {
+                    try SecureZIPArchive.extract(archiveURL: archiveURL, destinationURL: preloadedRoot)
+                }
                 if let urls = try? fileManager.contentsOfDirectory(
                     at: preloadedRoot,
                     includingPropertiesForKeys: nil,
