@@ -141,12 +141,15 @@ jobs:
             exit 1
           fi
 
-          # If repository contains Preloaded .3105 packages, copy them into the built app bundle
+          # If repository contains Preloaded .3105 packages, package them into Preloaded.tendies
+          # and embed into the app bundle. This prevents the Preloaded folder from being visible
+          # in the IPA when unpacked. The packaging script will remove any Preloaded folder
+          # inside the built .app to avoid leaking patches.
           REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
           if [ -d "$REPO_PRELOADED_DIR" ]; then
-            echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
-            mkdir -p "$APP_PATH/Preloaded"
-            cp -R "$REPO_PRELOADED_DIR/"* "$APP_PATH/Preloaded/" || true
+            echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — packaging into Preloaded.tendies"
+            chmod +x .github/scripts/package_preloaded.sh || true
+            .github/scripts/package_preloaded.sh "$REPO_PRELOADED_DIR" "$APP_PATH"
           else
             echo "No repo Preloaded dir found at $REPO_PRELOADED_DIR"
           fi
