@@ -251,8 +251,13 @@ enum KeyAuthLicenseService {
                         // reasonable epoch in seconds (post-2017)
                         resolvedDate = Date(timeIntervalSince1970: n)
                     } else {
-                        // small number: treat as seconds remaining
-                        resolvedDate = Date().addingTimeInterval(n)
+                        // small number: ambiguous. If it's 31 or less, treat as days (common KeyAuth shorthand)
+                        if n > 0 && n <= 31 {
+                            resolvedDate = Date().addingTimeInterval(n * 24 * 60 * 60)
+                        } else {
+                            // otherwise treat as seconds remaining
+                            resolvedDate = Date().addingTimeInterval(n)
+                        }
                     }
                     let iso = ISO8601DateFormatter()
                     iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -300,7 +305,11 @@ enum KeyAuthLicenseService {
                             } else if n > 1_500_000_000.0 {
                                 resolved = Date(timeIntervalSince1970: n)
                             } else {
-                                resolved = Date().addingTimeInterval(n)
+                                if n > 0 && n <= 31 {
+                                    resolved = Date().addingTimeInterval(n * 24 * 60 * 60)
+                                } else {
+                                    resolved = Date().addingTimeInterval(n)
+                                }
                             }
                             let iso = ISO8601DateFormatter()
                             iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -326,7 +335,11 @@ enum KeyAuthLicenseService {
                             } else if n > 1_500_000_000.0 {
                                 resolved = Date(timeIntervalSince1970: n)
                             } else {
-                                resolved = Date().addingTimeInterval(n)
+                                if n > 0 && n <= 31 {
+                                    resolved = Date().addingTimeInterval(n * 24 * 60 * 60)
+                                } else {
+                                    resolved = Date().addingTimeInterval(n)
+                                }
                             }
                             let iso = ISO8601DateFormatter()
                             iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
