@@ -273,7 +273,7 @@ struct PatchProjectsView: View {
                                         await MainActor.run { isWorkingAction = true }
                                         do {
                                             let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
-                                            _ = try DevicePatchService.apply(project: project)
+                                            _ = try await DevicePatchService.apply(project: project)
                                             await MainActor.run {
                                                 store.reload()
                                                 refreshSelectionState()
@@ -774,7 +774,7 @@ private struct PatchProjectDetailView: View {
                 let project = item.summary.schemaVersion >= 2
                     ? try PatchProjectLibrary.synchronizeWorkspace(item: item)
                     : baseProject
-                _ = try DevicePatchService.apply(project: project)
+                _ = try await DevicePatchService.apply(project: project)
                 await MainActor.run {
                     store.reload()
                     isWorking = false
