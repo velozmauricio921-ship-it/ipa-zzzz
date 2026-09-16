@@ -150,8 +150,16 @@ struct ThreeOneOSFiveApp: App {
 
                     // Observe license store changes to toggle license gate
                     NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
+                        let valid = LicenseGateStore.isValid()
                         withAnimation(.easeInOut(duration: 0.25)) {
-                            showLicenseGate = !LicenseGateStore.isValid()
+                            showLicenseGate = !valid
+                        }
+                        if !valid {
+                            Task.detached(priority: .userInitiated) {
+                                await DevicePatchService.deactivateAllActivePatches()
+                                // notify UI lists that patches changed (receipts removed)
+                                NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+                            }
                         }
                     }
                 }
@@ -185,6 +193,10 @@ struct ThreeOneOSFiveApp: App {
                         NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
                         withAnimation(.easeInOut(duration: 0.25)) {
                             showLicenseGate = true
+                        }
+                        Task.detached(priority: .userInitiated) {
+                            await DevicePatchService.deactivateAllActivePatches()
+                            NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
                         }
                     }
                 }
