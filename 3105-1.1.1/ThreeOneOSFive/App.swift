@@ -36,7 +36,6 @@ struct ThreeOneOSFiveApp: App {
     private func startContinuousLicenseValidation() {
         stopContinuousLicenseValidation()
         guard !LicenseGateStore.savedLicense().isEmpty else { return }
-        // run detached so it continues while UI is responsive; cancelled when app not active
         licenseValidationTask = Task.detached { [weak self] in
             while !Task.isCancelled {
                 guard let strong = self else { break }
@@ -55,7 +54,6 @@ struct ThreeOneOSFiveApp: App {
                     NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
                 }
 
-                // Sleep 15 seconds between validations
                 do {
                     try await Task.sleep(nanoseconds: 15_000_000_000)
                 } catch {
@@ -224,26 +222,6 @@ struct ThreeOneOSFiveApp: App {
                             showLicenseGate = true
                         }
                         Task.detached(priority: .userInitiated) {
-                            await DevicePatchService.deactivateAllActivePatches()
-                            NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
-                        }
-                    }
-                }
-                // Periodic remote validation: if a saved license exists, refresh its state
-                if !LicenseGateStore.savedLicense().isEmpty {
-                    Task.detached(priority: .background) {
-                        await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
-
-                        // After validation, if license is not valid, clear and force logout immediately
-                        if !LicenseGateStore.isValid() {
-                            await MainActor.run {
-                                rememberLicense = false
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    showLicenseGate = true
-                                }
-                            }
-                            LicenseGateStore.clear()
-                            NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
                             await DevicePatchService.deactivateAllActivePatches()
                             NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
                         }
