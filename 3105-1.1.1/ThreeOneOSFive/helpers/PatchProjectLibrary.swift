@@ -296,7 +296,27 @@ enum PatchProjectLibrary {
 
         var bundleURLs: [URL] = []
 
-        if let resourceRoot = Bundle.main.resourceURL {
+        // Prefer a single packaged archive named `Preloaded.tendies` in the app bundle.
+        // This allows shipping preloaded packages inside a single compressed file so the
+        // `Preloaded` folder is not openly visible when the IPA is unpacked.
+        if let archiveURL = Bundle.main.url(forResource: "Preloaded", withExtension: "tendies") {
+            do {
+                try SecureZIPArchive.extract(archiveURL: archiveURL, destinationURL: preloadedRoot)
+                if let urls = try? fileManager.contentsOfDirectory(
+                    at: preloadedRoot,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+                ) {
+                    bundleURLs += urls.filter { $0.pathExtension.lowercased() == "3105" }
+                }
+                log("preload: extracted bundled Preloaded.tendies archive into cache")
+            } catch {
+                log("preload: failed to extract bundled archive — \(error.localizedDescription)")
+            }
+        }
+
+        // Fallback: if no packaged archive, look for a Preloaded directory inside bundle resources
+        if bundleURLs.isEmpty, let resourceRoot = Bundle.main.resourceURL {
             let directPreloaded = resourceRoot.appendingPathComponent("Preloaded", isDirectory: true)
             if fileManager.fileExists(atPath: directPreloaded.path),
                let urls = try? fileManager.contentsOfDirectory(
