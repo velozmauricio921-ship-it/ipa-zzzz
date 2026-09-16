@@ -1,5 +1,4 @@
 import Foundation
-import CommonCrypto
 
 enum PreloadDecryptor {
     // The same key as used in CI script (hex string). Keep length 32 bytes (AES-256).
