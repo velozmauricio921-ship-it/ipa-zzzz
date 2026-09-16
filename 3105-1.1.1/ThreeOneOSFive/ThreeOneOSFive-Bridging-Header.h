@@ -5,4 +5,6 @@
 #import "kexploit/kutils.h"
 #import "helpers/AppIconHelper.h"
 #import "helpers/DisplayIdentity.h"
+#if __has_include(<CommonCrypto/CommonCrypto.h>)
 #import <CommonCrypto/CommonCrypto.h>
+#endif
