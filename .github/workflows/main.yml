@@ -26,17 +26,12 @@ jobs:
           git status --porcelain || true
           echo "--- REMOTES ---"
           git remote -v || true
-          echo "--- WORKSPACE LISTING ---"
+          echo "Workspace snapshot: listing top-level files"
           pwd || true
           ls -la || true
-          echo "--- LAST COMMIT ---"
+          echo "--- LAST COMMIT INFO ---"
           git --no-pager log -n 1 --pretty=fuller || true
-          echo "--- FILE SNAPSHOT: LicenseGateView.swift ---"
-          if [ -f "ThreeOneOSFive/views/LicenseGateView.swift" ]; then
-            sed -n '1,200p' ThreeOneOSFive/views/LicenseGateView.swift || true
-          else
-            echo "File not found: ThreeOneOSFive/views/LicenseGateView.swift"
-          fi
+          echo "(Sensitive file contents not printed to logs)"
 
       - name: Show Xcode project schemes (debug)
         run: |
@@ -157,11 +152,8 @@ jobs:
           fi
 
           # Dump Info.plist and search for common strings to help debug build contents
-          echo "--- Info.plist contents ---"
-          if [ -f "$APP_PATH/Info.plist" ]; then
-            plutil -p "$APP_PATH/Info.plist" || true
-          fi
-          echo "--- Searching binary/resources for keywords ---"
+          echo "(Info.plist not printed for security)"
+          echo "Searching binary/resources for non-sensitive debug keywords..."
           strings "$APP_PATH/3105" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
 
           rm -rf Payload ios-unsigned-test.ipa
