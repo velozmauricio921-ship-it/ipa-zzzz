@@ -137,7 +137,8 @@ struct ThreeOneOSFiveApp: App {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             showLicenseGate = !valid
                         }
-                        if !valid && LicenseGateStore.shouldForceLogout() {
+                        // Keep the remembered license intact while the user selected "remember"; only clear on explicit logout.
+                        if !valid && !rememberLicense && LicenseGateStore.shouldForceLogout() {
                             Task.detached(priority: .userInitiated) {
                                 await DevicePatchService.deactivateAllActivePatches()
                                 // notify UI lists that patches changed (receipts removed)
@@ -190,7 +191,7 @@ struct ThreeOneOSFiveApp: App {
                     Task {
                         await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
 
-                        if LicenseGateStore.shouldForceLogout() {
+                        if !rememberLicense && LicenseGateStore.shouldForceLogout() {
                             rememberLicense = false
                             LicenseGateStore.clear()
                             NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
