@@ -21,7 +21,7 @@ struct WallpaperLabView: View {
     @State private var hasLoaded = false
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
     @State private var countdownText: String = "—"
-    @State private var countdownTimer: Timer?
+    private let ticker = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     private var selectedPackage: WallpaperStagedPackage? {
         packages.first { $0.id == selectedPackageID }
@@ -302,8 +302,8 @@ struct WallpaperLabView: View {
                     // trigger view update
                     hasLoaded.toggle(); hasLoaded.toggle()
                 }
-                // start countdown timer
-                startCountdownTimer()
+                // immediate update
+                updateCountdown()
             }
             .onChange(of: rememberLicense) { new in
                 // If user chose to remember this device, proactively validate and refresh expiry/state
@@ -322,21 +322,19 @@ struct WallpaperLabView: View {
             }
             .onDisappear {
                 NotificationCenter.default.removeObserver(self, name: LicenseGateStore.notificationName, object: nil)
-                stopCountdownTimer()
+            }
+            .onReceive(ticker) { _ in
+                updateCountdown()
             }
         }
     }
 
     private func startCountdownTimer() {
-        updateCountdown()
-        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            updateCountdown()
-        }
+        // legacy - no-op (kept for compatibility)
     }
 
     private func stopCountdownTimer() {
-        countdownTimer?.invalidate()
-        countdownTimer = nil
+        // legacy - no-op
     }
 
     private func updateCountdown() {
