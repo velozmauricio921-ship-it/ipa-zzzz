@@ -208,7 +208,27 @@ struct PatchProjectsView: View {
                         if isWorkingAction {
                             ProgressView()
                         } else {
-                            if selectedHasReceipt {
+                            if selectedItem.isLocked {
+                                // Prompt to unlock password-protected package
+                                Button {
+                                    Task.detached(priority: .userInitiated) {
+                                        await MainActor.run {
+                                            store.requestUnlock(for: selectedItem)
+                                        }
+                                    }
+                                } label: {
+                                    Text(language.text("patch.unlock"))
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color(UIColor.systemBackground))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.9), lineWidth: 1.4)
+                                                )
+                                        )
+                                }
+                            } else if selectedHasReceipt {
                                 Button(role: .destructive) {
                                     Task.detached(priority: .userInitiated) {
                                         await MainActor.run { isWorkingAction = true }
