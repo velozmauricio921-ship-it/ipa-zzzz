@@ -164,7 +164,11 @@ struct LicenseGateStore {
                 // seconds since epoch (reasonable recent date)
                 return Date(timeIntervalSince1970: n)
             } else {
-                // treat as seconds remaining
+                // Ambiguous small numeric value: treat 1..31 as days (KeyAuth may return '1' for 1 day)
+                if n > 0 && n <= 31 {
+                    return Date().addingTimeInterval(n * 24 * 60 * 60)
+                }
+                // otherwise treat as seconds remaining
                 return Date().addingTimeInterval(n)
             }
         }
@@ -234,17 +238,23 @@ struct LicenseGateStore {
 
     static func remainingDays() -> Int? {
         guard let date = savedExpiryDate() else { return nil }
-        let days = Calendar.current.dateComponents([.day], from: Date(), to: date).day
-        return days
+        let interval = date.timeIntervalSinceNow
+        if interval <= 0 { return 0 }
+        let daysDouble = interval / (24.0 * 60.0 * 60.0)
+        return Int(ceil(daysDouble))
     }
 
     static func isValid() -> Bool {
         let validated = isUnlocked()
         let license = savedLicense()
         guard validated && !license.isEmpty else { return false }
-        if let days = remainingDays() {
-            return days > 0
+
+        // If expiry is available, consider license valid only while expiry is in the future.
+        if let expiryDate = savedExpiryDate() {
+            return expiryDate.timeIntervalSinceNow > 0
         }
+
+        // No expiry information: fall back to validated flag.
         return true
     }
 }
