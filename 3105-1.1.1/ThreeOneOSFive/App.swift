@@ -12,7 +12,7 @@ struct ThreeOneOSFiveApp: App {
     // Start locked until we verify or user logs in
     @State private var showLicenseGate = true
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
-    @State private var updateOffer: AppUpdateChecker.Offer?
+    
     @Environment(\.scenePhase) private var scenePhase
     @State private var expiryWatcher = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
@@ -25,12 +25,7 @@ struct ThreeOneOSFiveApp: App {
         AppLanguage(rawValue: languageCode) ?? .english
     }
 
-    private func checkForUpdate() {
-        Task {
-            guard let offer = await AppUpdateChecker.check() else { return }
-            await MainActor.run { updateOffer = offer }
-        }
-    }
+    // Update checks disabled to avoid showing update dialogs in builds
 
     private func preloadBundlePatches() {
         PatchProjectLibrary.ensurePreloadedPackagesInstalled()
@@ -108,7 +103,7 @@ struct ThreeOneOSFiveApp: App {
                                 showOnboarding = false
                             }
                             appState.detectSupport()
-                            checkForUpdate()
+                            // update check intentionally disabled
                         }
                         .environment(\.appLanguage, language)
                         .environment(\.locale, language.locale)
@@ -121,22 +116,10 @@ struct ThreeOneOSFiveApp: App {
             .sheet(isPresented: $showAttribution) {
                 DisplayAttributionSheet()
             }
-            .alert(item: $updateOffer) { offer in
-                Alert(
-                    title: Text(language.text("update.title")),
-                    message: Text(language.text("update.message", offer.version)),
-                    primaryButton: .default(Text(language.text("update.agree"))) {
-                        UIApplication.shared.open(offer.url)
-                    },
-                    secondaryButton: .cancel(Text(language.text("update.dismiss"))) {
-                        AppUpdateChecker.dismiss(version: offer.version)
-                    }
-                )
-            }
+            // Update alert disabled
             .onAppear {
                 if !showOnboarding {
                     appState.detectSupport()
-                    checkForUpdate()
                     preloadBundlePatches()
                     // If a saved license exists, refresh its state/expiry from KeyAuth.
                     // Only allow the validation to open the gate automatically when the user chose to remember the license.
