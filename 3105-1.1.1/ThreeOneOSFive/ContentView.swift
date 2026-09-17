@@ -237,6 +237,7 @@ private struct DashboardView: View {
                         developerPanel
                         contactPanel
                         deviceStatusPanel
+                        homeInfoKeyToggle
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 10)
@@ -428,6 +429,42 @@ private struct DashboardView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(stroke, lineWidth: 1.5)
+                )
+        )
+    }
+
+    private var homeInfoKeyToggle: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "key.fill")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(accent)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Info Key")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text("Info Key disabled by default")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $wallpapersEnabled)
+                .labelsHidden()
+                .tint(accent)
+                .scaleEffect(0.9)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(white: 0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color(white: 0.25), lineWidth: 1)
                 )
         )
     }
