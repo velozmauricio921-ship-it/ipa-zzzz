@@ -101,9 +101,9 @@ struct PatchProjectsView: View {
                     ZStack(alignment: .trailing) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("BAIJ STORE EXTERNAL")
-                                .font(.system(size: 29, weight: .heavy, design: .rounded))
+                                .font(.system(size: 32, weight: .heavy, design: .rounded))
                                 .foregroundStyle(Color(red: 0.83, green: 0.96, blue: 1.00))
-                                .tracking(-1.0)
+                                .tracking(-1.2)
                                 .textCase(.uppercase)
 
                             Text("PATCH CONTROL CENTER")
@@ -136,16 +136,39 @@ struct PatchProjectsView: View {
                     }
                     .padding(.horizontal, 14)
 
-                    AppSearchField(
-                        text: $searchText,
-                        prompt: language.text("patch.search"),
-                        clearLabel: language.text("common.clear")
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(Color(white: 0.7))
+                        TextField(language.text("patch.search"), text: $searchText)
+                            .font(.system(size: 19, weight: .medium))
+                            .foregroundStyle(.white)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(Color(white: 0.7))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(white: 0.84))
                     )
-                    // Category pickers (preserve styling; segmented where reasonable)
+                    .padding(.horizontal, 14)
+
                     if !availableGroups.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(availableGroups, id: \.self) { g in
+                            HStack(spacing: 10) {
+                                ForEach(availableGroups, id: \ .self) { g in
                                     Button(action: {
                                         if selectedGroup == g {
                                             selectedGroup = nil
@@ -156,91 +179,177 @@ struct PatchProjectsView: View {
                                         }
                                     }) {
                                         Text(g)
-                                            .font(.subheadline)
-                                            .padding(.vertical, 8)
-                                            .padding(.horizontal, 12)
+                                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                                            .padding(.vertical, 12)
+                                            .padding(.horizontal, 18)
                                             .background(
-                                                RoundedRectangle(cornerRadius: 10)
+                                                RoundedRectangle(cornerRadius: 12)
                                                     .fill(selectedGroup == g ? AppTheme.accent : Color(white: 0.18))
                                             )
-                                            .foregroundStyle(selectedGroup == g ? .black : .white)
+                                            .foregroundStyle(selectedGroup == g ? Color(red: 0.04, green: 0.12, blue: 0.20) : .white)
                                     }
                                     .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.horizontal, AppTheme.pageInset)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 4)
                         }
+
                         if let group = selectedGroup {
                             let subs = availableSubgroups(for: group)
                             if !subs.isEmpty {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 8) {
-                                        ForEach(subs, id: \.self) { s in
-                                            Button(action: {
-                                                if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
-                                            }) {
-                                                Text(s)
-                                                    .font(.subheadline)
-                                                    .padding(.vertical, 6)
-                                                    .padding(.horizontal, 10)
-                                                    .background(
-                                                        RoundedRectangle(cornerRadius: 8)
-                                                            .fill(selectedSubgroup == s ? AppTheme.accent : Color(white: 0.18))
-                                                    )
-                                                    .foregroundStyle(selectedSubgroup == s ? .black : .white)
-                                            }
-                                            .buttonStyle(.plain)
+                                HStack(spacing: 10) {
+                                    ForEach(subs, id: \ .self) { s in
+                                        Button(action: {
+                                            if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
+                                        }) {
+                                            Text(s)
+                                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                                .padding(.vertical, 10)
+                                                .padding(.horizontal, 16)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .fill(selectedSubgroup == s ? AppTheme.accent : Color(white: 0.18))
+                                                )
+                                                .foregroundStyle(selectedSubgroup == s ? Color(red: 0.04, green: 0.12, blue: 0.20) : .white)
                                         }
+                                        .buttonStyle(.plain)
                                     }
-                                    .padding(.horizontal, AppTheme.pageInset)
-                                    .padding(.bottom, 6)
                                 }
+                                .padding(.horizontal, 14)
                             }
                         }
                     }
-                    Divider().background(Color.white.opacity(0.12))
-                    List {
-                        if store.items.isEmpty && !store.isBusy {
-                            emptyState
-                                .listRowSeparator(.hidden)
-                        } else if filteredItems.isEmpty && !store.isBusy {
-                            searchEmptyState
-                                .listRowSeparator(.hidden)
-                        } else {
-                            ForEach(filteredItems) { item in
-                                Button(action: {
-                                    if selectedID == item.id {
-                                        selectedID = nil
-                                    } else {
-                                        selectedID = item.id
-                                        refreshSelectionState()
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color(red: 0.92, green: 0.95, blue: 0.97))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(AppTheme.accent.opacity(0.8), lineWidth: 2)
+                            )
+
+                        VStack(spacing: 12) {
+                            if store.items.isEmpty && !store.isBusy {
+                                emptyState
+                            } else if filteredItems.isEmpty && !store.isBusy {
+                                searchEmptyState
+                            } else {
+                                ForEach(filteredItems) { item in
+                                    Button(action: {
+                                        if selectedID == item.id {
+                                            selectedID = nil
+                                        } else {
+                                            selectedID = item.id
+                                            refreshSelectionState()
+                                        }
+                                    }) {
+                                        PatchProjectRow(item: item, language: language)
+                                            .overlay(
+                                                Group {
+                                                    if selectedID == item.id {
+                                                        RoundedRectangle(cornerRadius: 16)
+                                                            .stroke(AppTheme.accent, lineWidth: 2)
+                                                            .shadow(color: AppTheme.accent.opacity(0.45), radius: 12, x: 0, y: 0)
+                                                    } else {
+                                                        RoundedRectangle(cornerRadius: 16)
+                                                            .stroke(Color.clear, lineWidth: 0)
+                                                    }
+                                                }
+                                            )
                                     }
-                                }) {
-                                    PatchProjectRow(item: item, language: language)
-                                        .overlay(
-                                            Group {
-                                                if selectedID == item.id {
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(AppTheme.accent, lineWidth: 2)
-                                                        .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
-                                                } else {
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.clear, lineWidth: 0)
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .padding(14)
+                    }
+                    .padding(.horizontal, 14)
+
+                    if let sel = selectedID, let selectedItem = store.items.first(where: { $0.id == sel }) {
+                        let selectedHasReceipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
+                        HStack(alignment: .center, spacing: 10) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(AppTheme.accent)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(selectedItem.packageURL.deletingPathExtension().lastPathComponent.isEmpty ? (selectedItem.project?.name ?? "Aimcello Cache") : selectedItem.packageURL.deletingPathExtension().lastPathComponent)
+                                    .font(.system(size: 19, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+
+                                Text(selectedHasReceipt ? "ACTIVE" : "INACTIVE")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(selectedHasReceipt ? AppTheme.accent : .white.opacity(0.7))
+                                    .textCase(.uppercase)
+                            }
+
+                            Spacer()
+
+                            if isWorkingAction {
+                                ProgressView()
+                                    .tint(AppTheme.accent)
+                            } else if !selectedItem.isLocked {
+                                Toggle("", isOn: Binding(
+                                    get: { isSelectedPatchEnabled },
+                                    set: { newValue in
+                                        guard !isWorkingAction else { return }
+                                        isSelectedPatchEnabled = newValue
+                                        if newValue {
+                                            Task.detached(priority: .userInitiated) {
+                                                await MainActor.run { isWorkingAction = true }
+                                                do {
+                                                    let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
+                                                    _ = try await DevicePatchService.apply(project: project)
+                                                    await MainActor.run {
+                                                        store.reload(); refreshSelectionState(); isSelectedPatchEnabled = true
+                                                    }
+                                                } catch {
+                                                    await MainActor.run { isSelectedPatchEnabled = false }
+                                                }
+                                                await MainActor.run {
+                                                    isWorkingAction = false; receiptRefresh = UUID(); refreshSelectionState(); isSelectedPatchEnabled = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
                                                 }
                                             }
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .onDelete { offsets in
-                                offsets.map { filteredItems[$0] }.forEach(store.delete)
+                                        } else {
+                                            Task.detached(priority: .userInitiated) {
+                                                await MainActor.run { isWorkingAction = true }
+                                                do {
+                                                    if let receipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) {
+                                                        try DevicePatchService.restore(receipt: receipt)
+                                                    }
+                                                    await MainActor.run {
+                                                        store.reload(); refreshSelectionState(); isSelectedPatchEnabled = false
+                                                    }
+                                                } catch {
+                                                    await MainActor.run { isSelectedPatchEnabled = true }
+                                                }
+                                                await MainActor.run {
+                                                    isWorkingAction = false; receiptRefresh = UUID(); refreshSelectionState(); isSelectedPatchEnabled = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
+                                                }
+                                            }
+                                        }
+                                    }
+                                ))
+                                .labelsHidden()
+                                .tint(AppTheme.accent)
+                                .scaleEffect(1.0)
                             }
                         }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 16)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(Color(red: 0.12, green: 0.29, blue: 0.36))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .stroke(AppTheme.accent.opacity(0.8), lineWidth: 1.6)
+                                )
+                        )
+                        .padding(.horizontal, 14)
                     }
-                    .listStyle(.insetGrouped)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.clear)
                 }
             }
             // Bottom action bar for selected feature (inside NavigationStack content)
@@ -540,43 +649,58 @@ private struct PatchProjectRow: View {
     let language: AppLanguage
 
     var body: some View {
-        HStack(spacing: 12) {
-            AppRowIcon(systemName: item.isLocked ? "lock.doc.fill" : "shippingbox.fill")
-                VStack(alignment: .leading, spacing: 4) {
-                // Prefer displaying the package filename (as in the repo) so names match after build.
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(red: 0.22, green: 0.47, blue: 0.72))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(AppTheme.accent.opacity(0.7), lineWidth: 1.5)
+                    )
+
+                Image(systemName: item.isLocked ? "lock.doc.fill" : "shippingbox.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 38, height: 38)
+
+            VStack(alignment: .leading, spacing: 3) {
                 let fileTitle = item.packageURL.deletingPathExtension().lastPathComponent
                 Text((fileTitle.isEmpty ? (item.project?.name ?? language.text("patch.locked_project")) : fileTitle).uppercased())
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
+                    .font(.system(size: 23, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
                 Text(item.isLocked
                      ? language.text("patch.tap_to_unlock").uppercased()
                      : language.text(
                         item.summary.schemaVersion >= 2 ? "patch.workspace_items_count" : "patch.rules_count",
                         Int64((item.project?.rules.count ?? 0) + (item.project?.directories.count ?? 0))
                      ).uppercased())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(white: 0.82))
             }
+
             Spacer()
+
             if item.summary.isPasswordProtected {
                 Image(systemName: "key.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(AppTheme.accent)
                     .accessibilityLabel(language.text("patch.password_protected"))
             }
         }
-        .padding(12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(red: 0.12, green: 0.13, blue: 0.24))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(red: 0.12, green: 0.18, blue: 0.27))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(AppTheme.accent.opacity(0.45), lineWidth: 1.3)
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(AppTheme.accent.opacity(0.55), lineWidth: 1.15)
-        )
-        .shadow(color: AppTheme.accent.opacity(0.08), radius: 8, x: 0, y: 4)
-        .padding(.horizontal, AppTheme.pageInset)
         .padding(.vertical, 6)
     }
 }
