@@ -240,16 +240,27 @@ private struct DashboardView: View {
 
     private var topBar: some View {
         HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("BAIJ STORE")
+                    .font(.system(size: 32, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .tracking(-0.8)
+
+                Text("HOME")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
+                    .letterSpacing(2.0)
+            }
             Spacer()
             HStack(spacing: 12) {
                 Button { showLogs = true } label: {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "doc.text")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(AppTheme.accent)
-                        .padding(8)
+                        .padding(10)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(AppTheme.accent, lineWidth: 1.5)
+                                .fill(AppTheme.accent.opacity(0.12))
                         )
                 }
                 .buttonStyle(.plain)
@@ -258,15 +269,16 @@ private struct DashboardView: View {
                     Image(systemName: "gearshape")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white)
-                        .padding(8)
+                        .padding(10)
                         .background(
                             Circle()
-                                .fill(Color(white: 0.22))
+                                .fill(AppTheme.accent.opacity(0.22))
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, 4)
     }
 
     private var infoKeyToggle: some View {
