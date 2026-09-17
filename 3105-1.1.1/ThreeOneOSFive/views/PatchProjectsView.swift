@@ -191,8 +191,11 @@ struct PatchProjectsView: View {
                             offsets.map { filteredItems[$0] }.forEach(store.delete)
                         }
                     }
+                    }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
                 }
-                .listStyle(.insetGrouped)
             }
             // Bottom action bar for selected feature (inside NavigationStack content)
             if let sel = selectedID, let selectedItem = store.items.first(where: { $0.id == sel }) {
@@ -335,7 +338,7 @@ struct PatchProjectsView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         } // NavigationStack end
-        .navigationTitle(language.text("patch.title"))
+        .navigationTitle("BAIJ STORE EXTERNAL")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -503,12 +506,12 @@ private struct PatchProjectRow: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(red: 0.12, green: 0.13, blue: 0.24))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(AppTheme.accent.opacity(0.06), lineWidth: 1.4)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppTheme.accent.opacity(0.55), lineWidth: 1.15)
         )
         .shadow(color: AppTheme.accent.opacity(0.08), radius: 8, x: 0, y: 4)
         .padding(.horizontal, AppTheme.pageInset)
