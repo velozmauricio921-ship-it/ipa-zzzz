@@ -239,8 +239,8 @@ private struct DashboardView: View {
     }
 
     private var topBar: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("BAIJ STORE")
                     .font(.system(size: 32, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
@@ -249,9 +249,11 @@ private struct DashboardView: View {
                 Text("HOME")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.accent)
-                    .letterSpacing(2.0)
+                    .tracking(2)
             }
+
             Spacer()
+
             HStack(spacing: 12) {
                 Button { showLogs = true } label: {
                     Image(systemName: "doc.text")
@@ -260,7 +262,7 @@ private struct DashboardView: View {
                         .padding(10)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(AppTheme.accent.opacity(0.12))
+                                .fill(AppTheme.accentSoft)
                         )
                 }
                 .buttonStyle(.plain)
@@ -272,13 +274,13 @@ private struct DashboardView: View {
                         .padding(10)
                         .background(
                             Circle()
-                                .fill(AppTheme.accent.opacity(0.22))
+                                .fill(AppTheme.accentSoft)
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 6)
     }
 
     private var infoKeyToggle: some View {
