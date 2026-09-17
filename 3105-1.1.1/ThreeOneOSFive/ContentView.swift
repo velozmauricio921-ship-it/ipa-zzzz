@@ -213,17 +213,18 @@ private struct DashboardView: View {
     @Binding var wallpapersEnabled: Bool
     let wallpapersSupported: Bool
 
-    private let purpleDark = Color(red: 0.12, green: 0.04, blue: 0.20)
-    private let purpleMid = Color(red: 0.22, green: 0.07, blue: 0.34)
-    private let purpleCard = Color(red: 0.20, green: 0.06, blue: 0.31)
-    private let purpleLight = Color(red: 0.90, green: 0.58, blue: 1.0)
-    private let accentPurple = Color(red: 0.89, green: 0.50, blue: 1.00)
+    private let appBackground = Color(red: 0.02, green: 0.09, blue: 0.17)
+    private let appMid = Color(red: 0.05, green: 0.22, blue: 0.35)
+    private let appPanel = Color(red: 0.10, green: 0.31, blue: 0.42)
+    private let accentCyan = Color(red: 0.43, green: 0.90, blue: 1.00)
+    private let softCyan = Color(red: 0.77, green: 0.96, blue: 1.00)
+    private let cyanStroke = Color(red: 0.38, green: 0.88, blue: 1.00).opacity(0.9)
 
     var body: some View {
         NavigationStack {
             ZStack {
                 LinearGradient(
-                    colors: [purpleDark, purpleMid],
+                    colors: [appBackground, appMid],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -249,17 +250,17 @@ private struct DashboardView: View {
     }
 
     private var modeSelector: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack {
             Spacer()
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
                 pill("FF Normal", selected: true)
                 pill("FF Max", selected: false)
                 pill("Developer", selected: false)
             }
             .padding(6)
-            .frame(width: 270)
+            .frame(width: 300)
             .background(
-                Capsule().fill(Color(white: 0.18).opacity(0.8))
+                Capsule().fill(Color(white: 0.18).opacity(0.9))
             )
             Spacer()
         }
@@ -267,27 +268,29 @@ private struct DashboardView: View {
 
     private func pill(_ title: String, selected: Bool) -> some View {
         Text(title)
-            .font(.system(size: 16, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? .white : Color.white.opacity(0.8))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .font(.system(size: 15, weight: selected ? .semibold : .regular))
+            .foregroundStyle(selected ? .white : Color.white.opacity(0.75))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
             .background(
-                Capsule().fill(selected ? accentPurple : Color.clear)
+                Capsule().fill(selected ? accentCyan : Color.clear)
+                    .frame(maxWidth: .infinity)
             )
+            .clipShape(Capsule())
     }
 
     private var headerPanel: some View {
         ZStack(alignment: .trailing) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("VESPER EXTERNAL")
-                    .font(.system(size: 32, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
+                Text("BAIJ STORE")
+                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .foregroundStyle(softCyan)
                     .tracking(-1.2)
                     .textCase(.uppercase)
 
                 Text("PATCH CONTROL CENTER")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(accentPurple)
+                    .foregroundStyle(accentCyan)
                     .tracking(1.8)
                     .textCase(.uppercase)
             }
@@ -296,21 +299,21 @@ private struct DashboardView: View {
             .padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(red: 0.26, green: 0.10, blue: 0.35))
+                    .fill(Color(red: 0.12, green: 0.25, blue: 0.38))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(accentPurple, lineWidth: 2)
+                            .stroke(cyanStroke, lineWidth: 2)
                     )
             )
 
             Circle()
-                .fill(accentPurple)
+                .fill(accentCyan)
                 .frame(width: 42, height: 42)
                 .padding(.trailing, 18)
                 .overlay(
-                    Image(systemName: "n.circle.fill")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.white)
+                    Text("B")
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundStyle(Color(red: 0.05, green: 0.12, blue: 0.20))
                 )
         }
         .padding(.top, 2)
@@ -320,7 +323,7 @@ private struct DashboardView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(Color(white: 0.2))
+                    .fill(Color(white: 0.20))
                     .frame(width: 36, height: 36)
                     .overlay(
                         Image(systemName: "person.fill")
@@ -330,12 +333,12 @@ private struct DashboardView: View {
 
                 Text("DEVELOPER INFO")
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(purpleLight)
+                    .foregroundStyle(softCyan)
                     .tracking(0.9)
                     .textCase(.uppercase)
             }
 
-            Text("YAGAMIxIOS")
+            Text("VELOZxIOS")
                 .font(.system(size: 28, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.leading, 48)
@@ -345,7 +348,7 @@ private struct DashboardView: View {
             HStack {
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(purpleLight)
+                    .foregroundStyle(accentCyan)
 
                 Text("DEVELOPER INFO • DESIGN 1")
                     .font(.system(size: 14, weight: .semibold))
@@ -355,7 +358,7 @@ private struct DashboardView: View {
             HStack {
                 Text("BUILD")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(purpleLight)
+                    .foregroundStyle(softCyan)
                     .tracking(1.6)
                     .textCase(.uppercase)
                 Spacer()
@@ -367,53 +370,65 @@ private struct DashboardView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(red: 0.21, green: 0.07, blue: 0.30))
+                .fill(Color(red: 0.14, green: 0.31, blue: 0.42))
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(accentPurple, lineWidth: 1.8)
+                        .stroke(cyanStroke, lineWidth: 1.8)
                 )
         )
     }
 
     private var contactPanel: some View {
         VStack(spacing: 12) {
-            contactRow(icon: "paperplane.fill", title: "@YAGAMIxIOS", tint: purpleLight)
-            contactRow(icon: "link", title: "t.me/VesperExternal", tint: purpleLight)
-            contactRow(icon: "message.fill", title: "Send feedback to @YAGAMIxIOS", tint: purpleLight)
+            contactButton(title: "Discord", subtitle: "Join my Discord", icon: "paperplane.fill", tint: accentCyan, url: "https://discord.gg/aBQyPTbpgc")
+            contactButton(title: "WhatsApp", subtitle: "Contact me", icon: "message.fill", tint: accentCyan, url: "https://wa.me/584124788825")
+            contactButton(title: "VELOZxIOS", subtitle: "Developer", icon: "person.fill", tint: accentCyan, url: "https://t.me/VELOZxIOS")
         }
     }
 
-    private func contactRow(icon: String, title: String, tint: Color) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(Color(white: 0.15))
-                    .frame(width: 28, height: 28)
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(tint)
+    private func contactButton(title: String, subtitle: String, icon: String, tint: Color, url: String) -> some View {
+        Group {
+            if let destination = URL(string: url) {
+                Link(destination: destination) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle().fill(Color(white: 0.15))
+                                .frame(width: 30, height: 30)
+                            Image(systemName: icon)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(tint)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text(subtitle)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(red: 0.14, green: 0.29, blue: 0.40))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(cyanStroke, lineWidth: 1.1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
             }
-
-            Text(title)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-
-            Spacer()
-
-            Image(systemName: "arrow.up.right")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white.opacity(0.8))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(red: 0.20, green: 0.08, blue: 0.28))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(accentPurple.opacity(0.7), lineWidth: 1.1)
-                )
-        )
     }
 
     private var deviceStatusPanel: some View {
@@ -421,7 +436,7 @@ private struct DashboardView: View {
             HStack {
                 Text("DEVICE STATUS")
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(purpleLight)
+                    .foregroundStyle(softCyan)
                     .tracking(0.8)
                     .textCase(.uppercase)
             }
@@ -436,14 +451,10 @@ private struct DashboardView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(red: 0.18, green: 0.06, blue: 0.27))
+                .fill(Color(red: 0.10, green: 0.25, blue: 0.38))
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(accentPurple.opacity(0.7), lineWidth: 1.5)
-                )
-        )
-    }
-
+                        .stroke(cyanStroke, lineWidth: 1.5)
     private func statusRow(label: String, value: String, valueColor: Color = .white) -> some View {
         HStack {
             Text(label)
