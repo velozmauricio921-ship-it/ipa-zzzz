@@ -99,16 +99,10 @@ struct PatchProjectsView: View {
                 VStack(spacing: 12) {
                     ZStack(alignment: .trailing) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("BAIJ STORE EXTERNAL")
+                            Text("BAIJ STORE")
                                 .font(.system(size: 30, weight: .heavy, design: .rounded))
                                 .foregroundStyle(Color(red: 0.83, green: 0.96, blue: 1.00))
                                 .tracking(-1.2)
-                                .textCase(.uppercase)
-
-                            Text("PATCH CONTROL CENTER")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(AppTheme.accent)
-                                .tracking(1.8)
                                 .textCase(.uppercase)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -134,12 +128,6 @@ struct PatchProjectsView: View {
                             )
                     }
                     .padding(.horizontal, 14)
-
-                    AppSearchField(
-                        text: $searchText,
-                        prompt: language.text("patch.search"),
-                        clearLabel: language.text("common.clear")
-                    )
 
                     if !availableGroups.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -247,139 +235,119 @@ struct PatchProjectsView: View {
                 let selectedHasReceipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
                 VStack(spacing: 0) {
                     Divider()
-                    HStack(spacing: 12) {
+                    HStack(alignment: .center, spacing: 12) {
                         let selectedTitle = selectedItem.packageURL.deletingPathExtension().lastPathComponent
-                        Text(selectedTitle.isEmpty ? (selectedItem.project?.name ?? language.text("patch.title")) : selectedTitle)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(selectedTitle.isEmpty ? (selectedItem.project?.name ?? language.text("patch.title")) : selectedTitle)
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+
+                            Text(selectedHasReceipt ? "ACTIVE" : "INACTIVE")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(selectedHasReceipt ? AppTheme.accent : .white.opacity(0.7))
+                                .textCase(.uppercase)
+                        }
+
                         Spacer()
+
                         if isWorkingAction {
                             ProgressView()
-                        } else {
-                            if selectedItem.isLocked {
-                                // Prompt to unlock password-protected package
-                                Button {
-                                    Task.detached(priority: .userInitiated) {
-                                        await MainActor.run {
-                                            store.requestUnlock(for: selectedItem)
-                                        }
-                                    }
-                                } label: {
-                                    Text(language.text("patch.unlock"))
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(Color(UIColor.systemBackground))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.9), lineWidth: 1.4)
-                                                )
-                                        )
+                                .tint(AppTheme.accent)
+                        } else if selectedItem.isLocked {
+                            Button {
+                                Task.detached(priority: .userInitiated) {
+                                    await MainActor.run { store.requestUnlock(for: selectedItem) }
                                 }
-                            } else if selectedHasReceipt {
-                                Button(role: .destructive) {
-                                    Task.detached(priority: .userInitiated) {
-                                        await MainActor.run { isWorkingAction = true }
-                                        do {
-                                            if let receipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) {
-                                                try DevicePatchService.restore(receipt: receipt)
-                                                print("[Patch] restore succeeded for project: \(selectedItem.id)")
+                            } label: {
+                                Text(language.text("patch.unlock"))
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule().fill(AppTheme.accent.opacity(0.12))
+                                    )
+                                    .foregroundStyle(AppTheme.accent)
+                            }
+                        } else {
+                            Toggle("", isOn: Binding(
+                                get: { selectedHasReceipt },
+                                set: { newValue in
+                                    guard !isWorkingAction else { return }
+                                    if newValue {
+                                        Task.detached(priority: .userInitiated) {
+                                            await MainActor.run { isWorkingAction = true }
+                                            do {
+                                                let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
+                                                _ = try await DevicePatchService.apply(project: project)
                                                 await MainActor.run {
                                                     store.reload()
                                                     refreshSelectionState()
-                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
-                                                    restoreFailureCounts[selectedItem.id] = 0
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
+                                                }
+                                            } catch let error as PatchPackageError {
+                                                await MainActor.run {
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
+                                                }
+                                            } catch {
+                                                await MainActor.run {
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.apply")
                                                 }
                                             }
-                                        } catch let error as PatchPackageError {
-                                            print("[Patch] restore failed (PatchPackageError) for project: \(selectedItem.id) -> \(error)")
                                             await MainActor.run {
-                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
-                                                // increment failure count and force fallback after 2 failures
-                                                restoreFailureCounts[selectedItem.id, default: 0] += 1
-                                                let failures = restoreFailureCounts[selectedItem.id] ?? 0
-                                                if failures >= 2 {
-                                                    receiptRefresh = UUID()
-                                                    restoreFailureCounts[selectedItem.id] = 0
-                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.force_deactivated_message")
-                                                }
-                                            }
-                                        } catch {
-                                            print("[Patch] restore failed (unknown) for project: \(selectedItem.id) -> \(error)")
-                                            await MainActor.run {
-                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.restore")
-                                                restoreFailureCounts[selectedItem.id, default: 0] += 1
-                                                let failures = restoreFailureCounts[selectedItem.id] ?? 0
-                                                if failures >= 2 {
-                                                    receiptRefresh = UUID()
-                                                    restoreFailureCounts[selectedItem.id] = 0
-                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.force_deactivated_message")
-                                                }
-                                            }
-                                        }
-                                        await MainActor.run {
-                                            isWorkingAction = false
-                                            receiptRefresh = UUID()
-                                            refreshSelectionState()
-                                        }
-                                    }
-                                } label: {
-                                    Text("DESACTIVAR")
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(Color(UIColor.systemBackground))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.9), lineWidth: 1.4)
-                                                )
-                                        )
-                                }
-                            } else {
-                                Button {
-                                    Task.detached(priority: .userInitiated) {
-                                        await MainActor.run { isWorkingAction = true }
-                                        do {
-                                            let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
-                                            _ = try await DevicePatchService.apply(project: project)
-                                            await MainActor.run {
-                                                store.reload()
+                                                isWorkingAction = false
+                                                receiptRefresh = UUID()
                                                 refreshSelectionState()
-                                                actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
-                                            }
-                                        } catch let error as PatchPackageError {
-                                            await MainActor.run {
-                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
-                                            }
-                                        } catch {
-                                            await MainActor.run {
-                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.apply")
                                             }
                                         }
-                                        await MainActor.run {
-                                            isWorkingAction = false
-                                            receiptRefresh = UUID()
-                                            refreshSelectionState()
+                                    } else {
+                                        Task.detached(priority: .userInitiated) {
+                                            await MainActor.run { isWorkingAction = true }
+                                            do {
+                                                if let receipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) {
+                                                    try DevicePatchService.restore(receipt: receipt)
+                                                    await MainActor.run {
+                                                        store.reload()
+                                                        refreshSelectionState()
+                                                        actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
+                                                    }
+                                                }
+                                            } catch let error as PatchPackageError {
+                                                await MainActor.run {
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
+                                                }
+                                            } catch {
+                                                await MainActor.run {
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.restore")
+                                                }
+                                            }
+                                            await MainActor.run {
+                                                isWorkingAction = false
+                                                receiptRefresh = UUID()
+                                                refreshSelectionState()
+                                            }
                                         }
                                     }
-                                } label: {
-                                    Text("ACTIVAR")
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(AppTheme.accent)
-                                        )
-                                        .foregroundStyle(.white)
                                 }
-                            }
+                            ))
+                            .labelsHidden()
+                            .tint(AppTheme.accent)
                         }
                     }
                     .padding(.horizontal, AppTheme.pageInset)
                     .padding(.vertical, 12)
-                    .background(Color(uiColor: .systemBackground))
-                    }
-                    .id(receiptRefresh)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(red: 0.10, green: 0.18, blue: 0.26))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(AppTheme.accent.opacity(0.4), lineWidth: 1.2)
+                            )
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+                }
+                .id(receiptRefresh)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         } // NavigationStack end
@@ -524,9 +492,7 @@ private struct PatchProjectRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AppRowIcon(systemName: item.isLocked ? "lock.doc.fill" : "shippingbox.fill")
-                .frame(width: 34, height: 34)
-                .padding(4)
+            PatchCubeIcon(isLocked: item.isLocked)
 
             VStack(alignment: .leading, spacing: 4) {
                 let fileTitle = item.packageURL.deletingPathExtension().lastPathComponent
@@ -566,6 +532,43 @@ private struct PatchProjectRow: View {
         .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
         .padding(.horizontal, AppTheme.pageInset)
         .padding(.vertical, 6)
+    }
+}
+
+private struct PatchCubeIcon: View {
+    let isLocked: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [Color(red: 0.54, green: 0.85, blue: 1.0), Color(red: 0.22, green: 0.62, blue: 0.94)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [Color(red: 0.82, green: 0.94, blue: 1.0), Color(red: 0.45, green: 0.76, blue: 0.98)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .frame(width: 18, height: 18)
+                .offset(x: 4, y: -4)
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(Color.white.opacity(0.7), lineWidth: 1.2)
+                .frame(width: 18, height: 18)
+                .offset(x: -4, y: 4)
+
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+        .frame(width: 34, height: 34)
+        .cornerRadius(10)
     }
 }
 
