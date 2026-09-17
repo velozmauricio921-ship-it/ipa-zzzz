@@ -90,13 +90,13 @@ struct PatchProjectsView: View {
         NavigationStack {
             ZStack {
                 LinearGradient(
-                    colors: [Color(red: 0.03, green: 0.10, blue: 0.18), Color(red: 0.10, green: 0.17, blue: 0.26)],
+                    colors: [Color(red: 0.05, green: 0.10, blue: 0.18), Color(red: 0.12, green: 0.16, blue: 0.24)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
 
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     ZStack(alignment: .trailing) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("BAIJ STORE EXTERNAL")
@@ -143,7 +143,7 @@ struct PatchProjectsView: View {
 
                     if !availableGroups.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 ForEach(availableGroups, id: \.self) { g in
                                     Button(action: {
                                         if selectedGroup == g {
@@ -155,11 +155,11 @@ struct PatchProjectsView: View {
                                         }
                                     }) {
                                         Text(g)
-                                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                                            .padding(.vertical, 10)
-                                            .padding(.horizontal, 18)
+                                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                            .padding(.vertical, 9)
+                                            .padding(.horizontal, 14)
                                             .background(
-                                                RoundedRectangle(cornerRadius: 12)
+                                                RoundedRectangle(cornerRadius: 10)
                                                     .fill(selectedGroup == g ? AppTheme.accent : Color(white: 0.18))
                                             )
                                             .foregroundStyle(selectedGroup == g ? .black : .white)
@@ -167,170 +167,222 @@ struct PatchProjectsView: View {
                                     .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, AppTheme.pageInset)
+                            .padding(.vertical, 8)
                         }
-
                         if let group = selectedGroup {
                             let subs = availableSubgroups(for: group)
                             if !subs.isEmpty {
-                                HStack(spacing: 10) {
-                                    ForEach(subs, id: \.self) { s in
-                                        Button(action: {
-                                            if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
-                                        }) {
-                                            Text(s)
-                                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                                .padding(.vertical, 8)
-                                                .padding(.horizontal, 14)
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 10)
-                                                        .fill(selectedSubgroup == s ? AppTheme.accent : Color(white: 0.18))
-                                                )
-                                                .foregroundStyle(selectedSubgroup == s ? .black : .white)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(subs, id: \.self) { s in
+                                            Button(action: {
+                                                if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
+                                            }) {
+                                                Text(s)
+                                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                                    .padding(.vertical, 7)
+                                                    .padding(.horizontal, 12)
+                                                    .background(
+                                                        RoundedRectangle(cornerRadius: 8)
+                                                            .fill(selectedSubgroup == s ? AppTheme.accent : Color(white: 0.18))
+                                                    )
+                                                    .foregroundStyle(selectedSubgroup == s ? .black : .white)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
-                                        .buttonStyle(.plain)
                                     }
+                                    .padding(.horizontal, AppTheme.pageInset)
+                                    .padding(.bottom, 6)
                                 }
-                                .padding(.horizontal, 14)
                             }
                         }
                     }
 
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(Color(red: 0.91, green: 0.94, blue: 0.97))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .stroke(AppTheme.accent.opacity(0.9), lineWidth: 2)
-                            )
-
-                        VStack(spacing: 10) {
-                            if store.items.isEmpty && !store.isBusy {
-                                emptyState
-                            } else if filteredItems.isEmpty && !store.isBusy {
-                                searchEmptyState
-                            } else {
-                                ForEach(filteredItems) { item in
-                                    Button(action: {
-                                        if selectedID == item.id {
-                                            selectedID = nil
-                                        } else {
-                                            selectedID = item.id
+                    List {
+                        if store.items.isEmpty && !store.isBusy {
+                            emptyState
+                                .listRowSeparator(.hidden)
+                        } else if filteredItems.isEmpty && !store.isBusy {
+                            searchEmptyState
+                                .listRowSeparator(.hidden)
+                        } else {
+                            ForEach(filteredItems) { item in
+                                Button(action: {
+                                    if selectedID == item.id {
+                                        selectedID = nil
+                                    } else {
+                                        selectedID = item.id
+                                        refreshSelectionState()
+                                    }
+                                }) {
+                                    PatchProjectRow(item: item, language: language)
+                                        .overlay(
+                                            Group {
+                                                if selectedID == item.id {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(AppTheme.accent, lineWidth: 2)
+                                                        .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.clear, lineWidth: 0)
+                                                }
+                                            }
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .onDelete { offsets in
+                                offsets.map { filteredItems[$0] }.forEach(store.delete)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                }
+            }
+            // Bottom action bar for selected feature (inside NavigationStack content)
+            if let sel = selectedID, let selectedItem = store.items.first(where: { $0.id == sel }) {
+                let selectedHasReceipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack(spacing: 12) {
+                        let selectedTitle = selectedItem.packageURL.deletingPathExtension().lastPathComponent
+                        Text(selectedTitle.isEmpty ? (selectedItem.project?.name ?? language.text("patch.title")) : selectedTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        Spacer()
+                        if isWorkingAction {
+                            ProgressView()
+                        } else {
+                            if selectedItem.isLocked {
+                                // Prompt to unlock password-protected package
+                                Button {
+                                    Task.detached(priority: .userInitiated) {
+                                        await MainActor.run {
+                                            store.requestUnlock(for: selectedItem)
+                                        }
+                                    }
+                                } label: {
+                                    Text(language.text("patch.unlock"))
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color(UIColor.systemBackground))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.9), lineWidth: 1.4)
+                                                )
+                                        )
+                                }
+                            } else if selectedHasReceipt {
+                                Button(role: .destructive) {
+                                    Task.detached(priority: .userInitiated) {
+                                        await MainActor.run { isWorkingAction = true }
+                                        do {
+                                            if let receipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) {
+                                                try DevicePatchService.restore(receipt: receipt)
+                                                print("[Patch] restore succeeded for project: \(selectedItem.id)")
+                                                await MainActor.run {
+                                                    store.reload()
+                                                    refreshSelectionState()
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
+                                                    restoreFailureCounts[selectedItem.id] = 0
+                                                }
+                                            }
+                                        } catch let error as PatchPackageError {
+                                            print("[Patch] restore failed (PatchPackageError) for project: \(selectedItem.id) -> \(error)")
+                                            await MainActor.run {
+                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
+                                                // increment failure count and force fallback after 2 failures
+                                                restoreFailureCounts[selectedItem.id, default: 0] += 1
+                                                let failures = restoreFailureCounts[selectedItem.id] ?? 0
+                                                if failures >= 2 {
+                                                    receiptRefresh = UUID()
+                                                    restoreFailureCounts[selectedItem.id] = 0
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.force_deactivated_message")
+                                                }
+                                            }
+                                        } catch {
+                                            print("[Patch] restore failed (unknown) for project: \(selectedItem.id) -> \(error)")
+                                            await MainActor.run {
+                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.restore")
+                                                restoreFailureCounts[selectedItem.id, default: 0] += 1
+                                                let failures = restoreFailureCounts[selectedItem.id] ?? 0
+                                                if failures >= 2 {
+                                                    receiptRefresh = UUID()
+                                                    restoreFailureCounts[selectedItem.id] = 0
+                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.force_deactivated_message")
+                                                }
+                                            }
+                                        }
+                                        await MainActor.run {
+                                            isWorkingAction = false
+                                            receiptRefresh = UUID()
                                             refreshSelectionState()
                                         }
-                                    }) {
-                                        PatchProjectRow(item: item, language: language)
-                                            .overlay(
-                                                Group {
-                                                    if selectedID == item.id {
-                                                        RoundedRectangle(cornerRadius: 18)
-                                                            .stroke(AppTheme.accent, lineWidth: 2)
-                                                            .shadow(color: AppTheme.accent.opacity(0.5), radius: 12, x: 0, y: 0)
-                                                    } else {
-                                                        RoundedRectangle(cornerRadius: 18)
-                                                            .stroke(Color.clear, lineWidth: 0)
-                                                    }
-                                                }
-                                            )
                                     }
-                                    .buttonStyle(.plain)
+                                } label: {
+                                    Text("DESACTIVAR")
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color(UIColor.systemBackground))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.9), lineWidth: 1.4)
+                                                )
+                                        )
+                                }
+                            } else {
+                                Button {
+                                    Task.detached(priority: .userInitiated) {
+                                        await MainActor.run { isWorkingAction = true }
+                                        do {
+                                            let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
+                                            _ = try await DevicePatchService.apply(project: project)
+                                            await MainActor.run {
+                                                store.reload()
+                                                refreshSelectionState()
+                                                actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
+                                            }
+                                        } catch let error as PatchPackageError {
+                                            await MainActor.run {
+                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
+                                            }
+                                        } catch {
+                                            await MainActor.run {
+                                                actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.apply")
+                                            }
+                                        }
+                                        await MainActor.run {
+                                            isWorkingAction = false
+                                            receiptRefresh = UUID()
+                                            refreshSelectionState()
+                                        }
+                                    }
+                                } label: {
+                                    Text("ACTIVAR")
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(AppTheme.accent)
+                                        )
+                                        .foregroundStyle(.white)
                                 }
                             }
                         }
-                        .padding(12)
                     }
-                    .padding(.horizontal, 14)
-
-                    if let sel = selectedID, let selectedItem = store.items.first(where: { $0.id == sel }) {
-                        let selectedHasReceipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
-                        HStack(alignment: .center, spacing: 12) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundStyle(AppTheme.accent)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                let selectedTitle = selectedItem.packageURL.deletingPathExtension().lastPathComponent
-                                Text(selectedTitle.isEmpty ? (selectedItem.project?.name ?? "Aimcello Cache") : selectedTitle)
-                                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-
-                                Text(selectedHasReceipt ? "ACTIVE" : "INACTIVE")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selectedHasReceipt ? AppTheme.accent : .white.opacity(0.7))
-                                    .textCase(.uppercase)
-                            }
-
-                            Spacer()
-
-                            if isWorkingAction {
-                                ProgressView()
-                                    .tint(AppTheme.accent)
-                            } else if !selectedItem.isLocked {
-                                Toggle("", isOn: Binding(
-                                    get: { isSelectedPatchEnabled },
-                                    set: { newValue in
-                                        guard !isWorkingAction else { return }
-                                        isSelectedPatchEnabled = newValue
-                                        if newValue {
-                                            Task.detached(priority: .userInitiated) {
-                                                await MainActor.run { isWorkingAction = true }
-                                                do {
-                                                    let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
-                                                    _ = try await DevicePatchService.apply(project: project)
-                                                    await MainActor.run {
-                                                        store.reload(); refreshSelectionState(); isSelectedPatchEnabled = true
-                                                    }
-                                                } catch {
-                                                    await MainActor.run { isSelectedPatchEnabled = false }
-                                                }
-                                                await MainActor.run {
-                                                    isWorkingAction = false; receiptRefresh = UUID(); refreshSelectionState(); isSelectedPatchEnabled = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
-                                                }
-                                            }
-                                        } else {
-                                            Task.detached(priority: .userInitiated) {
-                                                await MainActor.run { isWorkingAction = true }
-                                                do {
-                                                    if let receipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) {
-                                                        try DevicePatchService.restore(receipt: receipt)
-                                                    }
-                                                    await MainActor.run {
-                                                        store.reload(); refreshSelectionState(); isSelectedPatchEnabled = false
-                                                    }
-                                                } catch {
-                                                    await MainActor.run { isSelectedPatchEnabled = true }
-                                                }
-                                                await MainActor.run {
-                                                    isWorkingAction = false; receiptRefresh = UUID(); refreshSelectionState(); isSelectedPatchEnabled = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
-                                                }
-                                            }
-                                        }
-                                    }
-                                ))
-                                .labelsHidden()
-                                .tint(AppTheme.accent)
-                                .scaleEffect(1.0)
-                            }
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(Color(red: 0.12, green: 0.28, blue: 0.35))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .stroke(AppTheme.accent.opacity(0.8), lineWidth: 1.6)
-                                )
-                        )
-                        .padding(.horizontal, 14)
+                    .padding(.horizontal, AppTheme.pageInset)
+                    .padding(.vertical, 12)
+                    .background(Color(uiColor: .systemBackground))
                     }
-                }
-                .padding(.bottom, 10)
+                    .id(receiptRefresh)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-        }
+        } // NavigationStack end
         .navigationTitle(language.text("patch.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -472,26 +524,16 @@ private struct PatchProjectRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(red: 0.25, green: 0.56, blue: 0.90))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(AppTheme.accent.opacity(0.8), lineWidth: 1.4)
-                    )
-
-                Image(systemName: item.isLocked ? "lock.doc.fill" : "shippingbox.fill")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 40, height: 40)
+            AppRowIcon(systemName: item.isLocked ? "lock.doc.fill" : "shippingbox.fill")
+                .frame(width: 34, height: 34)
+                .padding(4)
 
             VStack(alignment: .leading, spacing: 4) {
                 let fileTitle = item.packageURL.deletingPathExtension().lastPathComponent
                 Text((fileTitle.isEmpty ? (item.project?.name ?? language.text("patch.locked_project")) : fileTitle).uppercased())
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 Text(item.isLocked
                      ? language.text("patch.tap_to_unlock").uppercased()
@@ -499,30 +541,31 @@ private struct PatchProjectRow: View {
                         item.summary.schemaVersion >= 2 ? "patch.workspace_items_count" : "patch.rules_count",
                         Int64((item.project?.rules.count ?? 0) + (item.project?.directories.count ?? 0))
                      ).uppercased())
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(white: 0.82))
+                    .font(.caption)
+                    .foregroundStyle(Color(white: 0.8))
             }
 
             Spacer()
 
             if item.summary.isPasswordProtected {
                 Image(systemName: "key.fill")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.caption)
                     .foregroundStyle(AppTheme.accent)
                     .accessibilityLabel(language.text("patch.password_protected"))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(red: 0.11, green: 0.18, blue: 0.25))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(red: 0.10, green: 0.18, blue: 0.26))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(AppTheme.accent.opacity(0.5), lineWidth: 1.1)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppTheme.accent.opacity(0.3), lineWidth: 1.2)
                 )
         )
+        .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
+        .padding(.horizontal, AppTheme.pageInset)
+        .padding(.vertical, 6)
     }
 }
 
