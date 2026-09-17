@@ -88,109 +88,140 @@ struct PatchProjectsView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                AppSearchField(
-                    text: $searchText,
-                    prompt: language.text("patch.search"),
-                    clearLabel: language.text("common.clear")
+            ZStack {
+                LinearGradient(
+                    colors: [Color(red: 0.08, green: 0.10, blue: 0.20), Color(red: 0.16, green: 0.10, blue: 0.27)],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                // Category pickers (preserve styling; segmented where reasonable)
-                if !availableGroups.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(availableGroups, id: \.self) { g in
+                .ignoresSafeArea()
+
+                VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("BAIJ STORE EXTERNAL")
+                            .font(.system(size: 30, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .tracking(-0.8)
+
+                        Text("PATCH CONTROL CENTER")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.accent)
+                            .tracking(1.5)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color(red: 0.15, green: 0.12, blue: 0.24))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .stroke(AppTheme.accent.opacity(0.9), lineWidth: 1.5)
+                            )
+                    )
+                    .padding(.horizontal, 14)
+
+                    AppSearchField(
+                        text: $searchText,
+                        prompt: language.text("patch.search"),
+                        clearLabel: language.text("common.clear")
+                    )
+                    // Category pickers (preserve styling; segmented where reasonable)
+                    if !availableGroups.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(availableGroups, id: \.self) { g in
+                                    Button(action: {
+                                        if selectedGroup == g {
+                                            selectedGroup = nil
+                                            selectedSubgroup = nil
+                                        } else {
+                                            selectedGroup = g
+                                            selectedSubgroup = nil
+                                        }
+                                    }) {
+                                        Text(g)
+                                            .font(.subheadline)
+                                            .padding(.vertical, 8)
+                                            .padding(.horizontal, 12)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(selectedGroup == g ? AppTheme.accent : Color(white: 0.18))
+                                            )
+                                            .foregroundStyle(selectedGroup == g ? .black : .white)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, AppTheme.pageInset)
+                            .padding(.vertical, 8)
+                        }
+                        if let group = selectedGroup {
+                            let subs = availableSubgroups(for: group)
+                            if !subs.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(subs, id: \.self) { s in
+                                            Button(action: {
+                                                if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
+                                            }) {
+                                                Text(s)
+                                                    .font(.subheadline)
+                                                    .padding(.vertical, 6)
+                                                    .padding(.horizontal, 10)
+                                                    .background(
+                                                        RoundedRectangle(cornerRadius: 8)
+                                                            .fill(selectedSubgroup == s ? AppTheme.accent : Color(white: 0.18))
+                                                    )
+                                                    .foregroundStyle(selectedSubgroup == s ? .black : .white)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.horizontal, AppTheme.pageInset)
+                                    .padding(.bottom, 6)
+                                }
+                            }
+                        }
+                    }
+                    Divider().background(Color.white.opacity(0.12))
+                    List {
+                        if store.items.isEmpty && !store.isBusy {
+                            emptyState
+                                .listRowSeparator(.hidden)
+                        } else if filteredItems.isEmpty && !store.isBusy {
+                            searchEmptyState
+                                .listRowSeparator(.hidden)
+                        } else {
+                            ForEach(filteredItems) { item in
                                 Button(action: {
-                                    if selectedGroup == g {
-                                        selectedGroup = nil
-                                        selectedSubgroup = nil
+                                    if selectedID == item.id {
+                                        selectedID = nil
                                     } else {
-                                        selectedGroup = g
-                                        // reset subgroup when switching group
-                                        selectedSubgroup = nil
+                                        selectedID = item.id
+                                        refreshSelectionState()
                                     }
                                 }) {
-                                    Text(g)
-                                        .font(.subheadline)
-                                        .padding(.vertical, 8)
-                                        .padding(.horizontal, 12)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(selectedGroup == g ? AppTheme.accent : Color(uiColor: .secondarySystemBackground))
+                                    PatchProjectRow(item: item, language: language)
+                                        .overlay(
+                                            Group {
+                                                if selectedID == item.id {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(AppTheme.accent, lineWidth: 2)
+                                                        .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.clear, lineWidth: 0)
+                                                }
+                                            }
                                         )
-                                        .foregroundStyle(selectedGroup == g ? .white : .primary)
                                 }
                                 .buttonStyle(.plain)
                             }
-                        }
-                        .padding(.horizontal, AppTheme.pageInset)
-                        .padding(.vertical, 8)
-                    }
-                    if let group = selectedGroup {
-                        let subs = availableSubgroups(for: group)
-                        if !subs.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(subs, id: \.self) { s in
-                                        Button(action: {
-                                            if selectedSubgroup == s { selectedSubgroup = nil } else { selectedSubgroup = s }
-                                        }) {
-                                            Text(s)
-                                                .font(.subheadline)
-                                                .padding(.vertical, 6)
-                                                .padding(.horizontal, 10)
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .fill(selectedSubgroup == s ? AppTheme.accent : Color(uiColor: .secondarySystemBackground))
-                                                )
-                                                .foregroundStyle(selectedSubgroup == s ? .white : .primary)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.horizontal, AppTheme.pageInset)
-                                .padding(.bottom, 6)
+                            .onDelete { offsets in
+                                offsets.map { filteredItems[$0] }.forEach(store.delete)
                             }
                         }
-                    }
-                }
-                Divider()
-                List {
-                    if store.items.isEmpty && !store.isBusy {
-                        emptyState
-                            .listRowSeparator(.hidden)
-                    } else if filteredItems.isEmpty && !store.isBusy {
-                        searchEmptyState
-                            .listRowSeparator(.hidden)
-                    } else {
-                        ForEach(filteredItems) { item in
-                            Button(action: {
-                                if selectedID == item.id {
-                                    selectedID = nil
-                                } else {
-                                    selectedID = item.id
-                                    refreshSelectionState()
-                                }
-                            }) {
-                                PatchProjectRow(item: item, language: language)
-                                    .overlay(
-                                        Group {
-                                            if selectedID == item.id {
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(AppTheme.accent, lineWidth: 2)
-                                                    .shadow(color: AppTheme.accent.opacity(0.55), radius: 10, x: 0, y: 0)
-                                            } else {
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.clear, lineWidth: 0)
-                                            }
-                                        }
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .onDelete { offsets in
-                            offsets.map { filteredItems[$0] }.forEach(store.delete)
-                        }
-                    }
                     }
                     .listStyle(.insetGrouped)
                     .scrollContentBackground(.hidden)
@@ -338,7 +369,7 @@ struct PatchProjectsView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         } // NavigationStack end
-        .navigationTitle("BAIJ STORE EXTERNAL")
+        .navigationTitle(language.text("patch.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
