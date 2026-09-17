@@ -213,18 +213,19 @@ private struct DashboardView: View {
     @Binding var wallpapersEnabled: Bool
     let wallpapersSupported: Bool
 
-    private let appBackground = Color(red: 0.02, green: 0.09, blue: 0.17)
-    private let appMid = Color(red: 0.05, green: 0.22, blue: 0.35)
-    private let appPanel = Color(red: 0.10, green: 0.31, blue: 0.42)
-    private let accentCyan = Color(red: 0.43, green: 0.90, blue: 1.00)
-    private let softCyan = Color(red: 0.77, green: 0.96, blue: 1.00)
-    private let cyanStroke = Color(red: 0.38, green: 0.88, blue: 1.00).opacity(0.9)
+    private let bgDark = Color(red: 0.02, green: 0.09, blue: 0.17)
+    private let bgMid = Color(red: 0.04, green: 0.18, blue: 0.30)
+    private let panel = Color(red: 0.10, green: 0.26, blue: 0.37)
+    private let panelAlt = Color(red: 0.08, green: 0.20, blue: 0.31)
+    private let accent = Color(red: 0.45, green: 0.92, blue: 1.00)
+    private let accentSoft = Color(red: 0.83, green: 0.96, blue: 1.00)
+    private let stroke = Color(red: 0.42, green: 0.88, blue: 1.00).opacity(0.9)
 
     var body: some View {
         NavigationStack {
             ZStack {
                 LinearGradient(
-                    colors: [appBackground, appMid],
+                    colors: [bgDark, bgMid],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -257,10 +258,10 @@ private struct DashboardView: View {
                 pill("FF Max", selected: false)
                 pill("Developer", selected: false)
             }
-            .padding(6)
             .frame(width: 300)
+            .padding(6)
             .background(
-                Capsule().fill(Color(white: 0.18).opacity(0.9))
+                Capsule().fill(Color(white: 0.16).opacity(0.9))
             )
             Spacer()
         }
@@ -271,59 +272,57 @@ private struct DashboardView: View {
             .font(.system(size: 15, weight: selected ? .semibold : .regular))
             .foregroundStyle(selected ? .white : Color.white.opacity(0.75))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, 11)
             .background(
-                Capsule().fill(selected ? accentCyan : Color.clear)
-                    .frame(maxWidth: .infinity)
+                Capsule().fill(selected ? accent : Color.clear)
             )
             .clipShape(Capsule())
     }
 
     private var headerPanel: some View {
         ZStack(alignment: .trailing) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text("BAIJ STORE")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .foregroundStyle(softCyan)
+                    .font(.system(size: 31, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accentSoft)
                     .tracking(-1.2)
                     .textCase(.uppercase)
 
                 Text("PATCH CONTROL CENTER")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(accentCyan)
+                    .foregroundStyle(accent)
                     .tracking(1.8)
                     .textCase(.uppercase)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 18)
-            .padding(.vertical, 20)
+            .padding(.vertical, 22)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(red: 0.12, green: 0.25, blue: 0.38))
+                    .fill(Color(red: 0.14, green: 0.28, blue: 0.41))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(cyanStroke, lineWidth: 2)
+                            .stroke(stroke, lineWidth: 2)
                     )
             )
 
             Circle()
-                .fill(accentCyan)
+                .fill(accent)
                 .frame(width: 42, height: 42)
                 .padding(.trailing, 18)
                 .overlay(
                     Text("B")
-                        .font(.system(size: 22, weight: .heavy))
-                        .foregroundStyle(Color(red: 0.05, green: 0.12, blue: 0.20))
+                        .font(.system(size: 21, weight: .heavy))
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.20))
                 )
         }
-        .padding(.top, 2)
     }
 
     private var developerPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(Color(white: 0.20))
+                    .fill(Color(white: 0.2))
                     .frame(width: 36, height: 36)
                     .overlay(
                         Image(systemName: "person.fill")
@@ -333,13 +332,13 @@ private struct DashboardView: View {
 
                 Text("DEVELOPER INFO")
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(softCyan)
+                    .foregroundStyle(accentSoft)
                     .tracking(0.9)
                     .textCase(.uppercase)
             }
 
             Text("VELOZxIOS")
-                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                .font(.system(size: 29, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.leading, 48)
 
@@ -348,7 +347,7 @@ private struct DashboardView: View {
             HStack {
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(accentCyan)
+                    .foregroundStyle(accent)
 
                 Text("DEVELOPER INFO • DESIGN 1")
                     .font(.system(size: 14, weight: .semibold))
@@ -358,7 +357,7 @@ private struct DashboardView: View {
             HStack {
                 Text("BUILD")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(softCyan)
+                    .foregroundStyle(accentSoft)
                     .tracking(1.6)
                     .textCase(.uppercase)
                 Spacer()
@@ -370,19 +369,19 @@ private struct DashboardView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(red: 0.14, green: 0.31, blue: 0.42))
+                .fill(panel)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(cyanStroke, lineWidth: 1.8)
+                        .stroke(stroke, lineWidth: 1.8)
                 )
         )
     }
 
     private var contactPanel: some View {
         VStack(spacing: 12) {
-            contactButton(title: "Discord", subtitle: "Join my Discord", icon: "paperplane.fill", tint: accentCyan, url: "https://discord.gg/aBQyPTbpgc")
-            contactButton(title: "WhatsApp", subtitle: "Contact me", icon: "message.fill", tint: accentCyan, url: "https://wa.me/584124788825")
-            contactButton(title: "VELOZxIOS", subtitle: "Developer", icon: "person.fill", tint: accentCyan, url: "https://t.me/VELOZxIOS")
+            contactButton(title: "Discord", subtitle: "Join my Discord", icon: "paperplane.fill", tint: accent, url: "https://discord.gg/aBQyPTbpgc")
+            contactButton(title: "WhatsApp", subtitle: "Contact me", icon: "message.fill", tint: accent, url: "https://wa.me/584124788825")
+            contactButton(title: "VELOZxIOS", subtitle: "Developer", icon: "person.fill", tint: accent, url: "https://t.me/VELOZxIOS")
         }
     }
 
@@ -405,7 +404,7 @@ private struct DashboardView: View {
                                 .foregroundStyle(.white)
                             Text(subtitle)
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.7))
+                                .foregroundStyle(.white.opacity(0.72))
                         }
 
                         Spacer()
@@ -419,10 +418,10 @@ private struct DashboardView: View {
                     .frame(maxWidth: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(red: 0.14, green: 0.29, blue: 0.40))
+                            .fill(panelAlt)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(cyanStroke, lineWidth: 1.1)
+                                    .stroke(stroke, lineWidth: 1.1)
                             )
                     )
                 }
@@ -436,7 +435,7 @@ private struct DashboardView: View {
             HStack {
                 Text("DEVICE STATUS")
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(softCyan)
+                    .foregroundStyle(accentSoft)
                     .tracking(0.8)
                     .textCase(.uppercase)
             }
@@ -451,10 +450,14 @@ private struct DashboardView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(red: 0.10, green: 0.25, blue: 0.38))
+                .fill(panelAlt)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(cyanStroke, lineWidth: 1.5)
+                        .stroke(stroke, lineWidth: 1.5)
+                )
+        )
+    }
+
     private func statusRow(label: String, value: String, valueColor: Color = .white) -> some View {
         HStack {
             Text(label)
