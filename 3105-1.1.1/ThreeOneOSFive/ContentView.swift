@@ -233,7 +233,6 @@ private struct DashboardView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
-                        modeSelector
                         headerPanel
                         developerPanel
                         contactPanel
@@ -248,35 +247,6 @@ private struct DashboardView: View {
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showLogs) { LogView() }
         }
-    }
-
-    private var modeSelector: some View {
-        HStack {
-            Spacer()
-            HStack(spacing: 0) {
-                pill("FF Normal", selected: true)
-                pill("FF Max", selected: false)
-                pill("Developer", selected: false)
-            }
-            .frame(width: 300)
-            .padding(6)
-            .background(
-                Capsule().fill(Color(white: 0.16).opacity(0.9))
-            )
-            Spacer()
-        }
-    }
-
-    private func pill(_ title: String, selected: Bool) -> some View {
-        Text(title)
-            .font(.system(size: 15, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? .white : Color.white.opacity(0.75))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(
-                Capsule().fill(selected ? accent : Color.clear)
-            )
-            .clipShape(Capsule())
     }
 
     private var headerPanel: some View {
@@ -379,7 +349,7 @@ private struct DashboardView: View {
 
     private var contactPanel: some View {
         VStack(spacing: 12) {
-            contactButton(title: "Discord", subtitle: "Join my Discord", icon: "paperplane.fill", tint: accent, url: "https://discord.gg/aBQyPTbpgc")
+            contactButton(title: "Discord", subtitle: "Join my Discord", icon: "bubble.left.fill", tint: accent, url: "https://discord.gg/aBQyPTbpgc")
             contactButton(title: "WhatsApp", subtitle: "Contact me", icon: "message.fill", tint: accent, url: "https://wa.me/584124788825")
             contactButton(title: "VELOZxIOS", subtitle: "Developer", icon: "person.fill", tint: accent, url: "https://t.me/VELOZxIOS")
         }
@@ -442,9 +412,13 @@ private struct DashboardView: View {
             .padding(.top, 4)
 
             VStack(spacing: 0) {
-                statusRow(label: "iOS", value: "26.6.1")
-                statusRow(label: "Device", value: "iPad12,1")
-                statusRow(label: "Support", value: "SUPPORTED", valueColor: .green)
+                statusRow(label: "iOS", value: AppInfo.osVersion)
+                statusRow(label: "Device", value: AppInfo.displayMachineName)
+                statusRow(
+                    label: "Support",
+                    value: appState.isSupported ? "SUPPORTED" : "UNSUPPORTED",
+                    valueColor: appState.isSupported ? .green : .orange
+                )
             }
         }
         .padding(18)
