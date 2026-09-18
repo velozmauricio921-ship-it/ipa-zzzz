@@ -7,7 +7,7 @@ struct ContentView: View {
     @EnvironmentObject private var patchDraftCoordinator: PatchDraftCoordinator
     @State private var tabNavigation: AppTabNavigationState
     @AppStorage(FeatureVisibility.cleanerStorageKey) private var cleanerEnabled = false
-    @AppStorage(FeatureVisibility.wallpapersStorageKey) private var wallpapersEnabled = false
+    @AppStorage(FeatureVisibility.wallpapersStorageKey) private var wallpapersEnabled = true
 
     init() {
 #if targetEnvironment(simulator)
@@ -461,10 +461,10 @@ private struct DashboardView: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(white: 0.10))
+                .fill(Color(red: 0.10, green: 0.18, blue: 0.26))
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color(white: 0.25), lineWidth: 1)
+                        .stroke(AppTheme.accent.opacity(0.4), lineWidth: 1.1)
                 )
         )
     }
