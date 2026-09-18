@@ -540,31 +540,54 @@ private struct PatchCubeIcon: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(LinearGradient(
-                    colors: [Color(red: 0.54, green: 0.85, blue: 1.0), Color(red: 0.22, green: 0.62, blue: 0.94)],
+                    colors: [Color(red: 0.12, green: 0.22, blue: 0.34), Color(red: 0.07, green: 0.16, blue: 0.26)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
 
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [Color(red: 0.82, green: 0.94, blue: 1.0), Color(red: 0.45, green: 0.76, blue: 0.98)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: 18, height: 18)
-                .offset(x: 4, y: -4)
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color(red: 0.78, green: 0.95, blue: 1.0), Color(red: 0.44, green: 0.77, blue: 0.98)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
+                    .frame(width: 24, height: 24)
 
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .stroke(Color.white.opacity(0.7), lineWidth: 1.2)
-                .frame(width: 18, height: 18)
-                .offset(x: -4, y: 4)
+                Circle()
+                    .stroke(Color(red: 0.12, green: 0.24, blue: 0.36), lineWidth: 2)
+                    .frame(width: 18, height: 18)
+
+                Rectangle()
+                    .fill(Color(red: 0.12, green: 0.24, blue: 0.36))
+                    .frame(width: 2, height: 22)
+
+                Rectangle()
+                    .fill(Color(red: 0.12, green: 0.24, blue: 0.36))
+                    .frame(width: 22, height: 2)
+
+                Circle()
+                    .fill(AppTheme.accent)
+                    .frame(width: 5, height: 5)
+            }
+            .frame(width: 28, height: 28)
 
             if isLocked {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white.opacity(0.9))
+                    .padding(4)
+                    .background(
+                        Circle()
+                            .fill(Color(red: 0.08, green: 0.15, blue: 0.24))
+                    )
+                    .offset(x: 10, y: 10)
             }
         }
         .frame(width: 34, height: 34)
