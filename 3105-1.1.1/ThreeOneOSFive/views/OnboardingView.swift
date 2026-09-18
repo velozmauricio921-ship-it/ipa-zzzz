@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum OnboardingStep: Int, CaseIterable {
-    case welcome = 0, versions, install
+    case language = 0, welcome, versions, install
 
     var next: OnboardingStep? { Self(rawValue: rawValue + 1) }
     var prev: OnboardingStep? { Self(rawValue: rawValue - 1) }
@@ -71,9 +71,70 @@ struct OnboardingView: View {
     @ViewBuilder
     private func page(for s: OnboardingStep) -> some View {
         switch s {
+        case .language: languagePage
         case .welcome: welcomePage
         case .versions: versionsPage
         case .install: installPage
+        }
+    }
+
+    private var languagePage: some View {
+        VStack(spacing: 20) {
+            Spacer(minLength: 12)
+            AppLogo(size: 72)
+            VStack(spacing: 8) {
+                Text(language.text("onboarding.language_title"))
+                    .font(.title2.weight(.bold))
+                    .multilineTextAlignment(.center)
+                Text(language.text("onboarding.language_subtitle"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+            VStack(spacing: 10) {
+                ForEach(AppLanguage.allCases) { option in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                            languageCode = option.rawValue
+                        }
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.displayName)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(option.rawValue == "en" ? "English" : option.rawValue == "vi" ? "Tiếng Việt" : "简体中文")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if languageCode == option.rawValue {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(AppTheme.accent)
+                                    .font(.title3)
+                                    .transition(.scale.combined(with: .opacity))
+                            } else {
+                                Image(systemName: "circle")
+                                    .foregroundStyle(.secondary.opacity(0.5))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(languageCode == option.rawValue ? AppTheme.accent : Color.clear, lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+            Spacer(minLength: 12)
         }
     }
 
@@ -276,6 +337,11 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 20)
 
+            if step == .language {
+                Text(language.text("onboarding.language_hint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 16)
         .background(.bar)
