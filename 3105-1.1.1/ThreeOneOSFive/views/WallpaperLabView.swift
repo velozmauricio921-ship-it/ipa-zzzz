@@ -282,16 +282,33 @@ struct WallpaperLabView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(white: 0.14)))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.accent, lineWidth: 1.8))
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(red: 0.10, green: 0.18, blue: 0.26))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(AppTheme.accent.opacity(0.45), lineWidth: 1.3)
+                )
+        )
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                keyInfoSection
+            ZStack {
+                LinearGradient(
+                    colors: [Color(red: 0.02, green: 0.09, blue: 0.17), Color(red: 0.06, green: 0.14, blue: 0.25)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                List {
+                    keyInfoSection
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("Info Key")
             .navigationBarTitleDisplayMode(.inline)
             .alert(item: $alert, content: alertContent)
@@ -299,22 +316,17 @@ struct WallpaperLabView: View {
                 guard !hasLoaded else { return }
                 hasLoaded = true
                 NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
-                    // trigger view update
                     hasLoaded.toggle(); hasLoaded.toggle()
                 }
-                // immediate update
                 updateCountdown()
             }
             .onChange(of: rememberLicense) { new in
-                // If user chose to remember this device, proactively validate and refresh expiry/state
                 if new, !LicenseGateStore.savedLicense().isEmpty {
                     Task {
                         do {
                             _ = try await KeyAuthLicenseService.validate(licenseKey: LicenseGateStore.savedLicense())
-                            // LicenseGateStore.persist is called inside validate; notify view
                             NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
                         } catch {
-                            // ignore — validation failures will be reflected via persisted lastResponse
                             NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
                         }
                     }
