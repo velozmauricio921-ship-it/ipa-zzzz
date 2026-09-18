@@ -226,14 +226,27 @@ enum KeyAuthLicenseService {
         }
 
         // If server provides explicit `success`, trust it; otherwise use heuristic `isValid`.
-        let valid: Bool
+        var valid: Bool
         if let explicitSuccess = valResult.success {
             valid = explicitSuccess
         } else {
             valid = valResult.isValid
         }
 
-        let summaryText = valResult.rawText.isEmpty ? valResult.state.summary : valResult.rawText
+        // HWID check: if server returns an HWID and it differs from our device, treat as explicit mismatch (invalid).
+        var hwidMismatch = false
+        if let serverHWID = valResult.hwid, !serverHWID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let local = KeyAuthConfig.hardwareID()
+            if serverHWID != local {
+                hwidMismatch = true
+                valid = false
+            }
+        }
+
+        var summaryText = valResult.rawText.isEmpty ? valResult.state.summary : valResult.rawText
+        if hwidMismatch {
+            summaryText += " (HWID mismatch)"
+        }
 
         // Determine expiration text: prefer decoded string, otherwise try to extract from raw JSON (could be numeric)
         var expirationText = valResult.expiry ?? ""
@@ -404,14 +417,25 @@ enum KeyAuthLicenseService {
             LicenseGateStore.persistLastResponse(body: raw)
         }
 
+        // Build persisted status value. If HWID mismatch, prefer explicit marker so store can act deterministically.
+        var persistedStatus = valResult.state.rawValue
+        if hwidMismatch {
+            persistedStatus = "hwid_mismatch"
+        }
+
         // Persist server response and validity
         LicenseGateStore.persist(
             license: cleanKey,
             validated: valid,
-            status: valResult.state.rawValue,
+            status: persistedStatus,
             message: summaryText,
             expiry: expirationText
         )
+
+        // Record last successful validation timestamp for conservative offline behavior
+        if valid {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keyauth.license.lastValidation")
+        }
 
         return valResult
     }
