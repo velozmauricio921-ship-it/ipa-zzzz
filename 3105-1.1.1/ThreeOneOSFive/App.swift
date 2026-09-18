@@ -14,6 +14,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
     
     @Environment(\.scenePhase) private var scenePhase
+    private let lastValidationKey = "keyauth.license.lastValidation"
     @State private var expiryWatcher = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     init() {
@@ -57,6 +58,9 @@ struct ThreeOneOSFiveApp: App {
                     ok = (serverDeclaredSuccess || response.isValid) && hwidOK
                 }
 
+                // Persist successful validation timestamp
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastValidationKey)
+
                 // Only toggle the license gate UI if requested (preserve behavior for 'remember' option).
                 if updateUI {
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -69,8 +73,24 @@ struct ThreeOneOSFiveApp: App {
             }
         } catch {
             await MainActor.run {
-                // if validation fails due to network, be conservative and show gate
-                if updateUI { showLicenseGate = true }
+                // Network/validation failure: do NOT immediately force the login UI when the user chose "remember"
+                // If the user has a recent successful validation (e.g. within 24h), assume transient network and keep UI.
+                if updateUI {
+                    if rememberLicense {
+                        let last = UserDefaults.standard.double(forKey: lastValidationKey)
+                        let now = Date().timeIntervalSince1970
+                        let recent = (now - last) <= (24 * 60 * 60)
+                        if !recent {
+                            // no recent validation — show gate
+                            showLicenseGate = true
+                        } else {
+                            // keep current UI (do not open gate on transient errors)
+                        }
+                    } else {
+                        // not remembered — be conservative and require re-login
+                        showLicenseGate = true
+                    }
+                }
             }
         }
     }
