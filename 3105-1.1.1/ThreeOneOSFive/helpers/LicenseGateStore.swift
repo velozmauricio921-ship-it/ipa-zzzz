@@ -271,6 +271,8 @@ struct LicenseGateStore {
             || normalizedStatus.contains("used")
             || normalizedStatus.contains("already in use")
             || normalizedStatus.contains("already used")
+            || normalizedStatus.contains("hwid")
+            || normalizedStatus.contains("hwid_mismatch")
 
         if explicitInvalidStatus { return true }
 
