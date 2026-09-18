@@ -112,6 +112,7 @@ struct ThreeOneOSFiveApp: App {
                     }
                 }
             }
+            .preferredColorScheme(.dark)
             .displayIdentityAttribution(isPresented: $showAttribution, enabled: !showOnboarding && !showLicenseGate)
             .sheet(isPresented: $showAttribution) {
                 DisplayAttributionSheet()
