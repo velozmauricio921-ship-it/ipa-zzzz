@@ -153,15 +153,23 @@ struct ThreeOneOSFiveApp: App {
                     // Observe license store changes to toggle license gate
                     NotificationCenter.default.addObserver(forName: LicenseGateStore.notificationName, object: nil, queue: .main) { _ in
                         let valid = LicenseGateStore.isValid()
+                        let forceLogout = LicenseGateStore.shouldForceLogout()
+
                         withAnimation(.easeInOut(duration: 0.25)) {
-                            showLicenseGate = !valid
+                            showLicenseGate = !valid || forceLogout
                         }
-                        // Keep the remembered license intact while the user selected "remember"; only clear on explicit logout.
-                        if !valid && !rememberLicense && LicenseGateStore.shouldForceLogout() {
+
+                        // Revoke the session immediately when KeyAuth reports the license as expired, invalid, or removed.
+                        // This must happen even if the user chose "remember" so the app cannot remain unlocked after server-side revocation.
+                        if forceLogout {
+                            rememberLicense = false
                             Task.detached(priority: .userInitiated) {
                                 await DevicePatchService.deactivateAllActivePatches()
                                 // notify UI lists that patches changed (receipts removed)
                                 NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+                                DispatchQueue.main.async {
+                                    LicenseGateStore.clear()
+                                }
                             }
                         }
                     }
