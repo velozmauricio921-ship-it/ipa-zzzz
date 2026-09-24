@@ -37,10 +37,10 @@ enum KeyAuthLicenseError: LocalizedError {
             return "La respuesta de KeyAuth no fue válida."
         case .requestFailed(let statusCode):
             return "KeyAuth respondió con error HTTP \(statusCode)."
-        case .requestFailedWithBody(let statusCode, let body):
-            return "KeyAuth HTTP \(statusCode): \(body ?? "(sin cuerpo)")"
-        case .decodingFailed(let body):
-            return "No se pudo interpretar la respuesta de KeyAuth. Respuesta: \(body ?? "(sin cuerpo)")"
+        case .requestFailedWithBody(_, _):
+            return "KeyAuth no pudo validar la licencia en este momento."
+        case .decodingFailed:
+            return "La respuesta de KeyAuth no es válida."
         case .initFailed(let msg):
             return msg
         }
