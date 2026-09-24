@@ -54,7 +54,9 @@ struct LicenseGateStore {
     }
 
     static func persistLastResponse(body: String) {
-        UserDefaults.standard.set(body, forKey: lastResponseKey)
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sanitized = trimmed.count > 400 ? String(trimmed.prefix(400)) + "…" : trimmed
+        UserDefaults.standard.set(sanitized, forKey: lastResponseKey)
         postChange()
     }
 
@@ -249,12 +251,16 @@ struct LicenseGateStore {
         let license = savedLicense()
         guard validated && !license.isEmpty else { return false }
 
+        let lastValidation = UserDefaults.standard.double(forKey: "keyauth.license.lastValidation")
+        let recentSuccessfulValidation = lastValidation > 0 && (Date().timeIntervalSince1970 - lastValidation) <= (24 * 60 * 60)
+        guard recentSuccessfulValidation else { return false }
+
         // If expiry is available, consider license valid only while expiry is in the future.
         if let expiryDate = savedExpiryDate() {
             return expiryDate.timeIntervalSinceNow > 0
         }
 
-        // No expiry information: fall back to validated flag.
+        // No expiry information: fall back to the recent validation checkpoint.
         return true
     }
 
