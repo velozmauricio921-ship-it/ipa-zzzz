@@ -111,25 +111,27 @@ jobs:
           PLIST="$APP_PATH/Info.plist"
           echo "Modifying $PLIST"
 
-          set_plist() {
-            KEY="$1"
-            VALUE="$2"
-            if [ -z "$VALUE" ]; then return; fi
-
-            ESCAPED=$(printf '%s' "$VALUE" | sed 's/\\/\\\\/g; s/"/\\"/g')
-
-            if /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1; then
-              /usr/libexec/PlistBuddy -c "Set :$KEY \"$ESCAPED\"" "$PLIST"
-            else
-              /usr/libexec/PlistBuddy -c "Add :$KEY string \"$ESCAPED\"" "$PLIST"
-            fi
+          python3 - "$PLIST" "$KEYAUTH_APP_NAME" "$KEYAUTH_OWNER_ID" "$KEYAUTH_SECRET" "$KEYAUTH_BASEURL" "$DISPLAY_NAME" <<'PY'
+          import os, plistlib, sys
+          plist_path = sys.argv[1]
+          pairs = {
+              "KeyAuthAppName": sys.argv[2],
+              "KeyAuthOwnerID": sys.argv[3],
+              "KeyAuthAppSecret": sys.argv[4],
+              "KeyAuthBaseURL": sys.argv[5],
+              "CFBundleDisplayName": sys.argv[6],
           }
 
-          set_plist "KeyAuthAppName" "$KEYAUTH_APP_NAME"
-          set_plist "KeyAuthOwnerID" "$KEYAUTH_OWNER_ID"
-          set_plist "KeyAuthAppSecret" "$KEYAUTH_SECRET"
-          set_plist "KeyAuthBaseURL" "$KEYAUTH_BASEURL"
-          set_plist "CFBundleDisplayName" "$DISPLAY_NAME"
+          with open(plist_path, "rb") as f:
+              plist = plistlib.load(f)
+
+          for key, value in pairs.items():
+              if value is not None and value != "":
+                  plist[key] = value
+
+          with open(plist_path, "wb") as f:
+              plistlib.dump(plist, f)
+          PY
 
           echo "Injected KeyAuth config into $PLIST"
 
