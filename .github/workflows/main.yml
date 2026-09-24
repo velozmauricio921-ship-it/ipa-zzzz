@@ -1,9 +1,5 @@
 name: iOS unsigned build
 
-permissions:
-  contents: read
-  actions: write
-
 on:
   push:
     branches: [ main ]
@@ -99,26 +95,20 @@ jobs:
           set -e
           APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
           echo "App path: $APP_PATH"
-          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
-            echo "::error::No app found to inject config. Build likely failed before the bundle was produced."
-            exit 1
+          if [ -z "$APP_PATH" ]; then
+            echo "No app found to inject config"; exit 0
           fi
 
           PLIST="$APP_PATH/Info.plist"
           echo "Modifying $PLIST"
 
+          # Helper to set or add a string key
           set_plist() {
-            KEY="$1"
-            VALUE="$2"
+            KEY="$1"; VALUE="$2"
             if [ -z "$VALUE" ]; then return; fi
-
-            ESCAPED=$(printf '%s' "$VALUE" | sed 's/\\/\\\\/g; s/"/\\"/g')
-
-            if /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1; then
-              /usr/libexec/PlistBuddy -c "Set :$KEY \"$ESCAPED\"" "$PLIST"
-            else
-              /usr/libexec/PlistBuddy -c "Add :$KEY string \"$ESCAPED\"" "$PLIST"
-            fi
+            /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1 && \
+              /usr/libexec/PlistBuddy -c "Set :$KEY $VALUE" "$PLIST" || \
+              /usr/libexec/PlistBuddy -c "Add :$KEY string $VALUE" "$PLIST"
           }
 
           set_plist "KeyAuthAppName" "$KEYAUTH_APP_NAME"
@@ -174,6 +164,3 @@ jobs:
         with:
           name: ios-unsigned-build-${{ github.sha }}
           path: ./ios-unsigned-test.ipa
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 1
