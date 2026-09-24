@@ -31,15 +31,25 @@ struct ThreeOneOSFiveApp: App {
         NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
     }
 
+    private func invalidateSessionImmediately() async {
+        await MainActor.run {
+            rememberLicense = false
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showLicenseGate = true
+            }
+            LicenseGateStore.clear()
+            NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
+        }
+
+        await DevicePatchService.deactivateAllActivePatches()
+        NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
+    }
+
     // Validate saved license and toggle the license gate appropriately.
     // Validate saved license and optionally toggle the license gate UI.
     private func validateSavedLicenseAndToggleGate(updateUI: Bool = true) async {
         if !KeyAuthConfig.matchesPersistedRuntimeSignature() {
-            await MainActor.run {
-                rememberLicense = false
-                showLicenseGate = true
-                LicenseGateStore.clear()
-            }
+            await invalidateSessionImmediately()
             return
         }
 
@@ -52,6 +62,23 @@ struct ThreeOneOSFiveApp: App {
         do {
             let response = try await KeyAuthLicenseService.validate(licenseKey: saved)
             await MainActor.run {
+                // Explicitly close the session when the server says the license is expired or its expiry date is already past.
+                let responseExpired = response.state == .expired
+                    || (response.status?.lowercased().contains("expired") == true)
+                    || (response.result?.lowercased().contains("expired") == true)
+                    || (response.message?.lowercased().contains("expired") == true)
+
+                let expiryDate: Date?
+                if let expiryValue = response.expiry, !expiryValue.isEmpty {
+                    let iso = ISO8601DateFormatter()
+                    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    expiryDate = iso.date(from: expiryValue) ?? ISO8601DateFormatter().date(from: expiryValue)
+                } else {
+                    expiryDate = nil
+                }
+
+                let expiredByDate = expiryDate.map { $0.timeIntervalSinceNow <= 0 } ?? false
+
                 // If server provided explicit `success`, require it. Otherwise use response.isValid.
                 let serverHasExplicitSuccess = (response.success != nil)
                 let serverDeclaredSuccess = (response.success == true) || (response.status?.lowercased().contains("success") == true) || (response.result?.lowercased().contains("success") == true)
@@ -60,9 +87,16 @@ struct ThreeOneOSFiveApp: App {
 
                 let ok: Bool
                 if serverHasExplicitSuccess {
-                    ok = (response.success == true) && hwidOK
+                    ok = (response.success == true) && hwidOK && !responseExpired && !expiredByDate
                 } else {
-                    ok = (serverDeclaredSuccess || response.isValid) && hwidOK
+                    ok = (serverDeclaredSuccess || response.isValid) && hwidOK && !responseExpired && !expiredByDate
+                }
+
+                if !ok {
+                    Task {
+                        await self.invalidateSessionImmediately()
+                    }
+                    return
                 }
 
                 // Persist successful validation timestamp
@@ -71,7 +105,7 @@ struct ThreeOneOSFiveApp: App {
                 // Only toggle the license gate UI if requested (preserve behavior for 'remember' option).
                 if updateUI {
                     withAnimation(.easeInOut(duration: 0.25)) {
-                        showLicenseGate = !ok
+                        showLicenseGate = false
                     }
                 } else {
                     // still ensure NotificationCenter observers get updated state
