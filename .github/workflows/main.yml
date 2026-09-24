@@ -1,4 +1,3 @@
-
 name: iOS unsigned build
 
 permissions:
@@ -30,12 +29,17 @@ jobs:
           git status --porcelain || true
           echo "--- REMOTES ---"
           git remote -v || true
-          echo "Workspace snapshot: listing top-level files"
+          echo "--- WORKSPACE LISTING ---"
           pwd || true
           ls -la || true
-          echo "--- LAST COMMIT INFO ---"
+          echo "--- LAST COMMIT ---"
           git --no-pager log -n 1 --pretty=fuller || true
-          echo "(Sensitive file contents not printed to logs)"
+          echo "--- FILE SNAPSHOT: LicenseGateView.swift ---"
+          if [ -f "ThreeOneOSFive/views/LicenseGateView.swift" ]; then
+            sed -n '1,200p' ThreeOneOSFive/views/LicenseGateView.swift || true
+          else
+            echo "File not found: ThreeOneOSFive/views/LicenseGateView.swift"
+          fi
 
       - name: Show Xcode project schemes (debug)
         run: |
@@ -103,22 +107,18 @@ jobs:
           PLIST="$APP_PATH/Info.plist"
           echo "Modifying $PLIST"
 
-          # Helper to set or add a string key using plutil (safer), with PlistBuddy fallback
           set_plist() {
-            KEY="$1"; VALUE="$2"
+            KEY="$1"
+            VALUE="$2"
             if [ -z "$VALUE" ]; then return; fi
-            # Try plutil -replace first (handles quoting robustly)
-            /usr/bin/plutil -replace "$KEY" -string "$VALUE" "$PLIST" 2>/dev/null || {
-              # If plutil failed (e.g., key missing), try PlistBuddy add/set with escaped value
-              esc_value="$VALUE"
-              esc_value="${esc_value//\\/\\\\}"
-              esc_value="${esc_value//\"/\\\"}"
-              esc_value="${esc_value//$'\n'/\\n}"
-              esc_value="${esc_value//$'\r'/\\r}"
-              /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1 && \
-                /usr/libexec/PlistBuddy -c "Set :$KEY \"$esc_value\"" "$PLIST" || \
-                /usr/libexec/PlistBuddy -c "Add :$KEY string \"$esc_value\"" "$PLIST"
-            }
+
+            ESCAPED=$(printf '%s' "$VALUE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+            if /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1; then
+              /usr/libexec/PlistBuddy -c "Set :$KEY \"$ESCAPED\"" "$PLIST"
+            else
+              /usr/libexec/PlistBuddy -c "Add :$KEY string \"$ESCAPED\"" "$PLIST"
+            fi
           }
 
           set_plist "KeyAuthAppName" "$KEYAUTH_APP_NAME"
@@ -129,15 +129,11 @@ jobs:
 
           echo "Injected KeyAuth config into $PLIST"
 
-      - name: Keep build log locally for debugging
-        if: always()
-        run: |
-          if [ -f Build/logs/xcodebuild.log ]; then
-            echo "--- Last 80 lines of xcodebuild.log ---"
-            tail -n 80 Build/logs/xcodebuild.log || true
-          else
-            echo "No xcodebuild log was generated."
-          fi
+      - name: Upload xcodebuild log
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: Build/logs/xcodebuild.log
 
       - name: Package unsigned app
         run: |
@@ -161,8 +157,11 @@ jobs:
           fi
 
           # Dump Info.plist and search for common strings to help debug build contents
-          echo "(Info.plist not printed for security)"
-          echo "Searching binary/resources for non-sensitive debug keywords..."
+          echo "--- Info.plist contents ---"
+          if [ -f "$APP_PATH/Info.plist" ]; then
+            plutil -p "$APP_PATH/Info.plist" || true
+          fi
+          echo "--- Searching binary/resources for keywords ---"
           strings "$APP_PATH/3105" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
 
           rm -rf Payload ios-unsigned-test.ipa
@@ -170,40 +169,11 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -r ios-unsigned-test.ipa Payload
 
-      - name: Remove stale artifacts to free GitHub storage
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const res = await github.rest.actions.listArtifactsForRepo({ owner, repo, per_page: 100 });
-            const artifacts = res.data.artifacts || [];
-            const target = 'ios-unsigned-test-ipa';
-            for (const artifact of artifacts.filter(a => a.name === target || a.name.startsWith('ios-unsigned-test-ipa'))) {
-              try {
-                await github.rest.actions.deleteArtifact({ owner, repo, artifact_id: artifact.id });
-                core.info(`Deleted stale artifact: ${artifact.name} (${artifact.id})`);
-              } catch (error) {
-                core.warning(`Could not delete artifact ${artifact.name}: ${error.message}`);
-              }
-            }
-
-      - name: Upload unsigned IPA as artifact
-        if: always()
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-test-ipa
+          name: ios-unsigned-build-${{ github.sha }}
           path: ./ios-unsigned-test.ipa
           if-no-files-found: error
           overwrite: true
           retention-days: 1
-
-      - name: Build complete locally
-        if: always()
-        run: |
-          if [ -f ./ios-unsigned-test.ipa ]; then
-            ls -lh ./ios-unsigned-test.ipa
-            echo "IPA was generated locally and uploaded as a workflow artifact."
-          else
-            echo "IPA file was not created. Check the build log above."
-          fi
