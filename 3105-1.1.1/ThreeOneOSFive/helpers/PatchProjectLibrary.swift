@@ -110,11 +110,22 @@ enum PatchProjectLibrary {
 
         let urls = filteredRootURLs + preloadedURLs
 
-        var byID: [UUID: PatchLibraryItem] = [:]
+        var items: [PatchLibraryItem] = []
+        var seenPaths = Set<String>()
+
         for url in urls where url.pathExtension.lowercased() == "3105" {
             do {
                 let data = try readPackage(at: url)
                 let summary = try PatchPackageCodec.inspect(data)
+
+                // Keep every bundled package file distinct. Some release bundles can contain
+                // several .3105 files that legitimately share the same package metadata, but
+                // they must still appear as separate entries in the UI and cache.
+                let pathKey = url.standardizedFileURL.path
+                if !seenPaths.insert(pathKey).inserted {
+                    continue
+                }
+
                 // Require contentKey in secure keychain for non-password-protected packages.
                 let decoded: DecodedPatchPackage?
                 if let contentKey = try? PatchKeyStore.load(for: summary) {
@@ -148,12 +159,12 @@ enum PatchProjectLibrary {
                         log("patch: workspace unavailable for \(project.id.uuidString)")
                     }
                 }
-                byID[summary.packageID] = item
+                items.append(item)
             } catch {
                 log("patch: skipped invalid local package \(url.lastPathComponent)")
             }
         }
-        return byID.values.sorted {
+        return items.sorted {
             ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
         }
     }
