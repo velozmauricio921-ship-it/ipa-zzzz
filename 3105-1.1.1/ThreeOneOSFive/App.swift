@@ -13,9 +13,7 @@ struct ThreeOneOSFiveApp: App {
     @State private var showLicenseGate = true
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
     
-    @Environment(\.scenePhase) private var scenePhase
     private let lastValidationKey = "keyauth.license.lastValidation"
-    @State private var expiryWatcher = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     init() {
         setupLogCapture()
@@ -172,58 +170,8 @@ struct ThreeOneOSFiveApp: App {
             .onDisappear {
                 NotificationCenter.default.removeObserver(self, name: LicenseGateStore.notificationName, object: nil)
             }
-            .onChange(of: scenePhase) { phase in
-                guard phase == .active, !showOnboarding else { return }
-                appState.detectSupport()
-                // On resume, refresh saved license state from KeyAuth if present.
-                if !LicenseGateStore.savedLicense().isEmpty {
-                    Task {
-                        await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
-                    }
-                } else if !rememberLicense {
-                    // if not remembered and no saved license, force login on resume
-                    showLicenseGate = true
-                }
-            }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
-            }
-            .onReceive(expiryWatcher) { _ in
-                // If a saved expiry exists and is in the past, force logout and show license gate.
-                if let expiry = LicenseGateStore.savedExpiryDate() {
-                    if expiry.timeIntervalSinceNow <= 0 {
-                        // Clear persisted license and force login
-                        rememberLicense = false
-                        LicenseGateStore.clear()
-                        NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showLicenseGate = true
-                        }
-                        Task.detached(priority: .userInitiated) {
-                            await DevicePatchService.deactivateAllActivePatches()
-                            NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
-                        }
-                    }
-                }
-
-                // Periodic validation: while the app is running, poll KeyAuth for saved license state.
-                // Only force logout when the license was explicitly marked expired/revoked or the saved expiry is in the past.
-                if !LicenseGateStore.savedLicense().isEmpty {
-                    Task {
-                        await validateSavedLicenseAndToggleGate(updateUI: rememberLicense)
-
-                        if !rememberLicense && LicenseGateStore.shouldForceLogout() {
-                            rememberLicense = false
-                            LicenseGateStore.clear()
-                            NotificationCenter.default.post(name: LicenseGateStore.notificationName, object: nil)
-                            await DevicePatchService.deactivateAllActivePatches()
-                            NotificationCenter.default.post(name: Notification.Name("PatchLibraryDidChange"), object: nil)
-                            await MainActor.run {
-                                withAnimation(.easeInOut(duration: 0.25)) { showLicenseGate = true }
-                            }
-                        }
-                    }
-                }
             }
         }
     }
