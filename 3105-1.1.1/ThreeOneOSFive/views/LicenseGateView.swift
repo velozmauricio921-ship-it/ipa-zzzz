@@ -93,14 +93,6 @@ struct LicenseGateView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 10)
                     }
-                    let lastResponse = LicenseGateStore.savedLastResponse()
-                    if !lastResponse.isEmpty {
-                        Text(lastResponse)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 10)
-                    }
                 }
                 .padding(.horizontal, 22)
 
@@ -135,7 +127,7 @@ struct LicenseGateView: View {
                         onValidated()
                     }
                 } else {
-                    let msg = response.rawText.isEmpty ? response.state.summary : response.rawText
+                    let msg = response.state.summary
                     await MainActor.run {
                         errorMessage = msg
                         isLoading = false
@@ -156,7 +148,7 @@ struct LicenseGateView: View {
                     onValidated()
                 }
             } else {
-                let msg = response.rawText.isEmpty ? response.state.summary : response.rawText
+                let msg = response.state.summary
                 await MainActor.run {
                     errorMessage = msg
                     isLoading = false
