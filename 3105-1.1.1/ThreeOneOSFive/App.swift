@@ -34,6 +34,15 @@ struct ThreeOneOSFiveApp: App {
     // Validate saved license and toggle the license gate appropriately.
     // Validate saved license and optionally toggle the license gate UI.
     private func validateSavedLicenseAndToggleGate(updateUI: Bool = true) async {
+        if !KeyAuthConfig.matchesPersistedRuntimeSignature() {
+            await MainActor.run {
+                rememberLicense = false
+                showLicenseGate = true
+                LicenseGateStore.clear()
+            }
+            return
+        }
+
         let saved = LicenseGateStore.savedLicense()
         guard !saved.isEmpty else {
             await MainActor.run { showLicenseGate = true }
@@ -177,6 +186,14 @@ struct ThreeOneOSFiveApp: App {
             }
             .onDisappear {
                 NotificationCenter.default.removeObserver(self, name: LicenseGateStore.notificationName, object: nil)
+            }
+            .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+                guard !showOnboarding else { return }
+                let saved = LicenseGateStore.savedLicense()
+                guard !saved.isEmpty else { return }
+                Task {
+                    await validateSavedLicenseAndToggleGate(updateUI: rememberLicense || !showLicenseGate)
+                }
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
