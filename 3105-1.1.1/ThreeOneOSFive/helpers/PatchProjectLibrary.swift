@@ -313,12 +313,8 @@ enum PatchProjectLibrary {
         if let archiveURL = Bundle.main.url(forResource: "Preloaded", withExtension: "tendies") {
             do {
                 try SecureZIPArchive.extract(archiveURL: archiveURL, destinationURL: preloadedRoot)
-                if let urls = try? fileManager.contentsOfDirectory(
-                    at: preloadedRoot,
-                    includingPropertiesForKeys: nil,
-                    options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-                ) {
-                    bundleURLs += urls.filter { $0.pathExtension.lowercased() == "3105" }
+                if let recursive = try? fileManager.recursiveFiles(in: preloadedRoot, matchingExtension: "3105") {
+                    bundleURLs += recursive.filter { $0.path.contains("/Preloaded/") || $0.deletingLastPathComponent().lastPathComponent == "Preloaded" }
                 }
                 log("preload: extracted bundled Preloaded.tendies archive into cache")
             } catch {
@@ -340,6 +336,11 @@ enum PatchProjectLibrary {
                let recursive = try? fileManager.recursiveFiles(in: resourceRoot, matchingExtension: "3105") {
                 bundleURLs += recursive.filter { $0.path.contains("/Preloaded/") || $0.deletingLastPathComponent().lastPathComponent == "Preloaded" }
             }
+        }
+
+        if bundleURLs.isEmpty,
+           let nestedResourceURLs = Bundle.main.urls(forResourcesWithExtension: "3105", subdirectory: "Preloaded") {
+            bundleURLs += nestedResourceURLs
         }
 
         if bundleURLs.isEmpty,
