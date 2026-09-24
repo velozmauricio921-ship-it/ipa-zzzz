@@ -247,6 +247,10 @@ struct LicenseGateStore {
     }
 
     static func isValid() -> Bool {
+        if !KeyAuthConfig.matchesPersistedRuntimeSignature() {
+            return false
+        }
+
         let validated = isUnlocked()
         let license = savedLicense()
         guard validated && !license.isEmpty else { return false }
@@ -265,6 +269,10 @@ struct LicenseGateStore {
     }
 
     static func shouldForceLogout() -> Bool {
+        if !KeyAuthConfig.matchesPersistedRuntimeSignature() {
+            return true
+        }
+
         let license = savedLicense()
         guard !license.isEmpty else { return false }
 
