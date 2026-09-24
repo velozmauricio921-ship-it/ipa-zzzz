@@ -40,19 +40,43 @@ enum KeyAuthConfig {
     }
 
     static var baseURL: String {
-        info("KeyAuthBaseURL") ?? "https://keyauth.win/api/1.2/"
+        info("KeyAuthBaseURL") ?? ""
     }
 
     static var appName: String {
-        info("KeyAuthAppName") ?? "Mauricio2007veloz's Application"
+        info("KeyAuthAppName") ?? ""
     }
 
     static var ownerID: String {
-        info("KeyAuthOwnerID") ?? "iQk2hpwc8Z"
+        info("KeyAuthOwnerID") ?? ""
     }
 
     static var appSecret: String {
         info("KeyAuthAppSecret") ?? info("KeyAuthSellerKey") ?? ""
+    }
+
+    static var isConfigured: Bool {
+        !baseURL.isEmpty && !appName.isEmpty && !ownerID.isEmpty && !appSecret.isEmpty
+    }
+
+    static var runtimeSignature: String {
+        [baseURL, appName, ownerID, appSecret].joined(separator: "|")
+    }
+
+    static func ensureRuntimeCredentialState() {
+        let key = "keyauth.runtime.signature"
+        let current = runtimeSignature
+        let previous = UserDefaults.standard.string(forKey: key)
+
+        if previous == nil {
+            UserDefaults.standard.set(current, forKey: key)
+            return
+        }
+
+        if previous != current {
+            UserDefaults.standard.set(current, forKey: key)
+            LicenseGateStore.clear()
+        }
     }
 
     static func hardwareID() -> String {
@@ -116,6 +140,8 @@ struct KeyAuthValidationResponse: Decodable {
 
 enum KeyAuthLicenseService {
     static func validate(licenseKey: String) async throws -> KeyAuthValidationResponse {
+        KeyAuthConfig.ensureRuntimeCredentialState()
+
         let cleanKey = licenseKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanKey.isEmpty else {
             throw KeyAuthLicenseError.emptyLicense
@@ -125,7 +151,7 @@ enum KeyAuthLicenseService {
         let ownerID = KeyAuthConfig.ownerID
         let appSecret = KeyAuthConfig.appSecret
 
-        if appName.isEmpty || ownerID.isEmpty || appSecret.isEmpty {
+        if !KeyAuthConfig.isConfigured {
             throw KeyAuthLicenseError.invalidConfiguration
         }
 
