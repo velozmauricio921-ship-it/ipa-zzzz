@@ -1,5 +1,9 @@
 name: iOS unsigned build
 
+permissions:
+  contents: read
+  actions: write
+
 on:
   push:
     branches: [ main ]
@@ -93,22 +97,32 @@ jobs:
           DISPLAY_NAME: ${{ secrets.APP_DISPLAY_NAME }}
         run: |
           set -e
-          APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
+          APP_PATH=$(find Build/DerivedData -path "*/Build/Products/Release-iphoneos/*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find Build/DerivedData -name "*.app" -type d | head -n 1)
+          fi
+
           echo "App path: $APP_PATH"
-          if [ -z "$APP_PATH" ]; then
-            echo "No app found to inject config"; exit 0
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "::error::No .app bundle was generated. Check xcodebuild logs."
+            exit 1
           fi
 
           PLIST="$APP_PATH/Info.plist"
           echo "Modifying $PLIST"
 
-          # Helper to set or add a string key
           set_plist() {
-            KEY="$1"; VALUE="$2"
+            KEY="$1"
+            VALUE="$2"
             if [ -z "$VALUE" ]; then return; fi
-            /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1 && \
-              /usr/libexec/PlistBuddy -c "Set :$KEY $VALUE" "$PLIST" || \
-              /usr/libexec/PlistBuddy -c "Add :$KEY string $VALUE" "$PLIST"
+
+            ESCAPED=$(printf '%s' "$VALUE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+            if /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1; then
+              /usr/libexec/PlistBuddy -c "Set :$KEY \"$ESCAPED\"" "$PLIST"
+            else
+              /usr/libexec/PlistBuddy -c "Add :$KEY string \"$ESCAPED\"" "$PLIST"
+            fi
           }
 
           set_plist "KeyAuthAppName" "$KEYAUTH_APP_NAME"
@@ -128,15 +142,17 @@ jobs:
       - name: Package unsigned app
         run: |
           set -e
-          APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
+          APP_PATH=$(find Build/DerivedData -path "*/Build/Products/Release-iphoneos/*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find Build/DerivedData -name "*.app" -type d | head -n 1)
+          fi
           echo "App path: $APP_PATH"
 
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No se encontró 3105.app"
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: No se encontró ningún .app en Build/DerivedData"
             exit 1
           fi
 
-          # If repository contains Preloaded .3105 packages, copy them into the built app bundle
           REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
           if [ -d "$REPO_PRELOADED_DIR" ]; then
             echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
@@ -146,13 +162,15 @@ jobs:
             echo "No repo Preloaded dir found at $REPO_PRELOADED_DIR"
           fi
 
-          # Dump Info.plist and search for common strings to help debug build contents
           echo "--- Info.plist contents ---"
           if [ -f "$APP_PATH/Info.plist" ]; then
             plutil -p "$APP_PATH/Info.plist" || true
           fi
           echo "--- Searching binary/resources for keywords ---"
-          strings "$APP_PATH/3105" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
+          APP_BINARY=$(find "$APP_PATH" -maxdepth 1 -type f | head -n 1)
+          if [ -n "$APP_BINARY" ]; then
+            strings "$APP_BINARY" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
+          fi
 
           rm -rf Payload ios-unsigned-test.ipa
           mkdir -p Payload
@@ -164,3 +182,6 @@ jobs:
         with:
           name: ios-unsigned-build-${{ github.sha }}
           path: ./ios-unsigned-test.ipa
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
