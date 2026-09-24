@@ -124,11 +124,15 @@ jobs:
 
           echo "Injected KeyAuth config into $PLIST"
 
-      - name: Upload xcodebuild log
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcodebuild-log
-          path: Build/logs/xcodebuild.log
+      - name: Keep build log locally for debugging
+        if: always()
+        run: |
+          if [ -f Build/logs/xcodebuild.log ]; then
+            echo "--- Last 80 lines of xcodebuild.log ---"
+            tail -n 80 Build/logs/xcodebuild.log || true
+          else
+            echo "No xcodebuild log was generated."
+          fi
 
       - name: Package unsigned app
         run: |
@@ -161,8 +165,12 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -r ios-unsigned-test.ipa Payload
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-unsigned-build-${{ github.sha }}
-          path: ./ios-unsigned-test.ipa
+      - name: Build complete locally
+        if: always()
+        run: |
+          if [ -f ./ios-unsigned-test.ipa ]; then
+            ls -lh ./ios-unsigned-test.ipa
+            echo "IPA was generated locally without uploading to GitHub artifacts."
+          else
+            echo "IPA file was not created. Check the build log above."
+          fi
