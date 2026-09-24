@@ -165,12 +165,20 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -r ios-unsigned-test.ipa Payload
 
+      - name: Upload unsigned IPA as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-test-ipa
+          path: ./ios-unsigned-test.ipa
+          if-no-files-found: error
+
       - name: Build complete locally
         if: always()
         run: |
           if [ -f ./ios-unsigned-test.ipa ]; then
             ls -lh ./ios-unsigned-test.ipa
-            echo "IPA was generated locally without uploading to GitHub artifacts."
+            echo "IPA was generated locally and uploaded as a workflow artifact."
           else
             echo "IPA file was not created. Check the build log above."
           fi
