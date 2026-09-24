@@ -1,6 +1,10 @@
 
 name: iOS unsigned build
 
+permissions:
+  contents: read
+  actions: write
+
 on:
   push:
     branches: [ main ]
@@ -192,6 +196,7 @@ jobs:
           path: ./ios-unsigned-test.ipa
           if-no-files-found: error
           overwrite: true
+          retention-days: 1
 
       - name: Build complete locally
         if: always()
