@@ -63,6 +63,16 @@ enum KeyAuthConfig {
         [baseURL, appName, ownerID, appSecret].joined(separator: "|")
     }
 
+    static func persistedRuntimeSignature() -> String? {
+        UserDefaults.standard.string(forKey: "keyauth.runtime.signature")
+    }
+
+    static func matchesPersistedRuntimeSignature() -> Bool {
+        let persisted = persistedRuntimeSignature()
+        let current = runtimeSignature
+        return persisted == current
+    }
+
     static func ensureRuntimeCredentialState() {
         let key = "keyauth.runtime.signature"
         let current = runtimeSignature
