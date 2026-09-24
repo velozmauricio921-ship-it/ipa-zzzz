@@ -174,16 +174,16 @@ jobs:
             strings "$APP_BINARY" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
           fi
 
-          rm -rf Payload BAIJ STORE
+          rm -rf Payload ios-unsigned-test.ipa
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -r  BAIJ STORE Payload
+          zip -r ios-unsigned-test.ipa Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-unsigned-build-${{ github.sha }}
-          path: ./BAIJ STORE
+          path: ./ios-unsigned-test.ipa
           if-no-files-found: error
           overwrite: true
           retention-days: 1
