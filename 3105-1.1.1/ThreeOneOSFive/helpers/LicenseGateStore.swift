@@ -288,4 +288,8 @@ struct LicenseGateStore {
 
         return false
     }
+
+    static func clearAndForceLogout() {
+        clear()
+    }
 }
