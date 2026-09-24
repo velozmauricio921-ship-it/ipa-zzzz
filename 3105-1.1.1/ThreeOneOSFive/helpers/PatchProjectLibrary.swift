@@ -326,16 +326,14 @@ enum PatchProjectLibrary {
             }
         }
 
-        // Fallback: if no packaged archive, look for a Preloaded directory inside bundle resources
+        // Fallback: if no packaged archive, look for a Preloaded directory inside bundle resources.
+        // Important: nested folders such as `Preloaded/Free Fire/Visuals` must be traversed recursively,
+        // otherwise the app only sees top-level entries and misses the actual .3105 files.
         if bundleURLs.isEmpty, let resourceRoot = Bundle.main.resourceURL {
             let directPreloaded = resourceRoot.appendingPathComponent("Preloaded", isDirectory: true)
             if fileManager.fileExists(atPath: directPreloaded.path),
-               let urls = try? fileManager.contentsOfDirectory(
-                at: directPreloaded,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-               ) {
-                bundleURLs += urls.filter { $0.pathExtension.lowercased() == "3105" }
+               let recursive = try? fileManager.recursiveFiles(in: directPreloaded, matchingExtension: "3105") {
+                bundleURLs += recursive.filter { $0.path.contains("/Preloaded/") }
             }
 
             if bundleURLs.isEmpty,
