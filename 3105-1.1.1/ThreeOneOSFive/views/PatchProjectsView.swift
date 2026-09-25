@@ -281,6 +281,7 @@ struct PatchProjectsView: View {
                                                 let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
                                                 _ = try await DevicePatchService.apply(project: project)
                                                 await MainActor.run {
+                                                    AudioFeedback.play(isEnabled: true)
                                                     store.reload()
                                                     refreshSelectionState()
                                                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
@@ -307,6 +308,7 @@ struct PatchProjectsView: View {
                                                 if let receipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) {
                                                     try DevicePatchService.restore(receipt: receipt)
                                                     await MainActor.run {
+                                                        AudioFeedback.play(isEnabled: false)
                                                         store.reload()
                                                         refreshSelectionState()
                                                         actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
@@ -875,6 +877,7 @@ private struct PatchProjectDetailView: View {
                     : baseProject
                 _ = try await DevicePatchService.apply(project: project)
                 await MainActor.run {
+                    AudioFeedback.play(isEnabled: true)
                     store.reload()
                     isWorking = false
                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
@@ -906,6 +909,7 @@ private struct PatchProjectDetailView: View {
             do {
                 try DevicePatchService.restore(receipt: receipt)
                 await MainActor.run {
+                    AudioFeedback.play(isEnabled: false)
                     isWorking = false
                     actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
                 }
