@@ -45,6 +45,15 @@ jobs:
         run: |
           xcodebuild -list -project "3105-1.1.1/ThreeOneOSFive.xcodeproj"
 
+      - name: Verify project inputs
+        run: |
+          set -e
+          test -f "3105-1.1.1/ThreeOneOSFive.xcodeproj/project.pbxproj"
+          test -f "3105-1.1.1/ThreeOneOSFive/helpers/AudioFeedback.swift"
+          test -f "3105-1.1.1/ThreeOneOSFive/Audios/ACTIVADA.wav"
+          test -f "3105-1.1.1/ThreeOneOSFive/Audios/DESACTIVADA.wav"
+          echo "Project inputs are present."
+
       - name: Check for merge conflict markers
         run: |
           if git grep -n -E '^(<{7}|={7}|>{7})' -- 
@@ -143,10 +152,12 @@ jobs:
           done
 
       - name: Upload xcodebuild log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
           path: Build/logs/xcodebuild.log
+          if-no-files-found: warn
 
       - name: Package unsigned app
         run: |
