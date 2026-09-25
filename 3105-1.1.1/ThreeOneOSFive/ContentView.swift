@@ -47,11 +47,9 @@ struct ContentView: View {
             if requestID != nil { tabNavigation.select(AppSection.patches.rawValue) }
         }
         .onChange(of: cleanerEnabled) { _ in
-            AudioFeedback.play(isEnabled: cleanerEnabled)
             tabNavigation.reconcileSelection(with: featureVisibility)
         }
         .onChange(of: wallpapersEnabled) { _ in
-            AudioFeedback.play(isEnabled: wallpapersEnabled)
             tabNavigation.reconcileSelection(with: featureVisibility)
         }
         .onAppear {
