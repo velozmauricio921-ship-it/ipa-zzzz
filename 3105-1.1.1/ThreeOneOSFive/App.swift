@@ -13,8 +13,6 @@ struct ThreeOneOSFiveApp: App {
     @State private var showLicenseGate = true
     @AppStorage("keyauth.license.remember") private var rememberLicense = false
     
-    private let lastValidationKey = "keyauth.license.lastValidation"
-
     init() {
         setupLogCapture()
         log("app: 3105 launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
@@ -79,18 +77,12 @@ struct ThreeOneOSFiveApp: App {
 
                 let expiredByDate = expiryDate.map { $0.timeIntervalSinceNow <= 0 } ?? false
 
-                // If server provided explicit `success`, require it. Otherwise use response.isValid.
-                let serverHasExplicitSuccess = (response.success != nil)
-                let serverDeclaredSuccess = (response.success == true) || (response.status?.lowercased().contains("success") == true) || (response.result?.lowercased().contains("success") == true)
-
                 let hwidOK = (response.hwid == nil) || (response.hwid!.isEmpty) || (response.hwid == KeyAuthConfig.hardwareID())
-
-                let ok: Bool
-                if serverHasExplicitSuccess {
-                    ok = (response.success == true) && hwidOK && !responseExpired && !expiredByDate
-                } else {
-                    ok = (serverDeclaredSuccess || response.isValid) && hwidOK && !responseExpired && !expiredByDate
-                }
+                let ok = response.isValid
+                    && LicenseGateStore.isValid()
+                    && hwidOK
+                    && !responseExpired
+                    && !expiredByDate
 
                 if !ok {
                     Task {
@@ -98,9 +90,6 @@ struct ThreeOneOSFiveApp: App {
                     }
                     return
                 }
-
-                // Persist successful validation timestamp
-                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastValidationKey)
 
                 // Only toggle the license gate UI if requested (preserve behavior for 'remember' option).
                 if updateUI {
@@ -118,9 +107,7 @@ struct ThreeOneOSFiveApp: App {
                 // If the user has a recent successful validation (e.g. within 24h), assume transient network and keep UI.
                 if updateUI {
                     if rememberLicense {
-                        let last = UserDefaults.standard.double(forKey: lastValidationKey)
-                        let now = Date().timeIntervalSince1970
-                        let recent = (now - last) <= (24 * 60 * 60)
+                        let recent = LicenseGateStore.isValid()
                         if !recent {
                             // no recent validation — show gate
                             showLicenseGate = true
