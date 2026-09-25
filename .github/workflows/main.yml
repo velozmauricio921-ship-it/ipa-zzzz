@@ -35,10 +35,10 @@ jobs:
           echo "--- LAST COMMIT ---"
           git --no-pager log -n 1 --pretty=fuller || true
           echo "--- FILE SNAPSHOT: LicenseGateView.swift ---"
-          if [ -f "ThreeOneOSFive/views/LicenseGateView.swift" ]; then
-            sed -n '1,200p' ThreeOneOSFive/views/LicenseGateView.swift || true
+          if [ -f "3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift" ]; then
+            sed -n '1,200p' 3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift || true
           else
-            echo "File not found: ThreeOneOSFive/views/LicenseGateView.swift"
+            echo "File not found: 3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift"
           fi
 
       - name: Show Xcode project schemes (debug)
@@ -88,7 +88,7 @@ jobs:
           fi
 
       - name: Inject KeyAuth config into built Info.plist (from secrets)
-        if: always()
+        if: success()
         env:
           KEYAUTH_APP_NAME: ${{ secrets.KEYAUTH_APP_NAME }}
           KEYAUTH_OWNER_ID: ${{ secrets.KEYAUTH_OWNER_ID }}
@@ -135,6 +135,13 @@ jobs:
 
           echo "Injected KeyAuth config into $PLIST"
 
+          for AUDIO in ACTIVADA.wav DESACTIVADA.wav; do
+            if [ ! -f "$APP_PATH/$AUDIO" ]; then
+              echo "::error::Missing bundled audio: $AUDIO"
+              exit 1
+            fi
+          done
+
       - name: Upload xcodebuild log
         uses: actions/upload-artifact@v4
         with:
@@ -155,7 +162,7 @@ jobs:
             exit 1
           fi
 
-          REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
+          REPO_PRELOADED_DIR="3105-1.1.1/ThreeOneOSFive/Resources/Preloaded"
           if [ -d "$REPO_PRELOADED_DIR" ]; then
             echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
             mkdir -p "$APP_PATH/Preloaded"
