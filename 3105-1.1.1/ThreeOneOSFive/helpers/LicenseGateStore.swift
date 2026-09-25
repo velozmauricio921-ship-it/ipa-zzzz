@@ -1,4 +1,12 @@
 import Foundation
+import Security
+
+private struct LicenseConfirmation: Codable {
+    let license: String
+    let runtimeSignature: String
+    let hardwareID: String
+    let validatedAt: TimeInterval
+}
 
 struct LicenseGateStore {
     private static let validatedKey = "keyauth.license.validated"
@@ -7,6 +15,8 @@ struct LicenseGateStore {
     private static let lastMessageKey = "keyauth.license.lastMessage"
     private static let expiryKey = "keyauth.license.expiry"
     private static let lastResponseKey = "keyauth.license.lastResponse"
+    private static let confirmationService = "com.3105.keyauth.confirmation"
+    private static let confirmationAccount = "validated-license"
 
     static func isUnlocked() -> Bool {
         UserDefaults.standard.bool(forKey: validatedKey)
@@ -50,6 +60,11 @@ struct LicenseGateStore {
         UserDefaults.standard.set(status, forKey: statusKey)
         UserDefaults.standard.set(message, forKey: lastMessageKey)
         UserDefaults.standard.set(expiry, forKey: expiryKey)
+        if validated {
+            saveConfirmation(for: license)
+        } else {
+            deleteConfirmation()
+        }
         postChange()
     }
 
@@ -83,6 +98,7 @@ struct LicenseGateStore {
         UserDefaults.standard.removeObject(forKey: lastMessageKey)
         UserDefaults.standard.removeObject(forKey: expiryKey)
         UserDefaults.standard.removeObject(forKey: lastResponseKey)
+        deleteConfirmation()
         postChange()
     }
 
@@ -174,23 +190,6 @@ struct LicenseGateStore {
                 return Date().addingTimeInterval(n)
             }
         }
-        // If still nil, attempt to derive expiry from the license string itself (e.g., keys containing MES/SEM/DIA or durations)
-        if let derived = deriveExpiryFromLicenseKey() {
-            return derived
-        }
-
-        // Fallback: if the license is marked validated but no expiry found, assume a default 30-day expiry
-        // and persist it so the UI shows a countdown. This helps when users create simple keys without tags.
-        if isUnlocked(), !savedLicense().isEmpty {
-            let defaultExpiry = Date().addingTimeInterval(TimeInterval(30 * 24 * 60 * 60))
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            let s = iso.string(from: defaultExpiry)
-            UserDefaults.standard.set(s, forKey: expiryKey)
-            postChange()
-            return defaultExpiry
-        }
-
         return nil
     }
 
@@ -251,12 +250,15 @@ struct LicenseGateStore {
             return false
         }
 
-        let validated = isUnlocked()
-        let license = savedLicense()
-        guard validated && !license.isEmpty else { return false }
+        guard let confirmation = loadConfirmation(),
+              confirmation.license == savedLicense(),
+              confirmation.runtimeSignature == KeyAuthConfig.runtimeSignature,
+              confirmation.hardwareID == KeyAuthConfig.hardwareID() else { return false }
 
-        let lastValidation = UserDefaults.standard.double(forKey: "keyauth.license.lastValidation")
-        let recentSuccessfulValidation = lastValidation > 0 && (Date().timeIntervalSince1970 - lastValidation) <= (24 * 60 * 60)
+        let now = Date().timeIntervalSince1970
+        let recentSuccessfulValidation = confirmation.validatedAt > 0
+            && now >= confirmation.validatedAt
+            && (now - confirmation.validatedAt) <= (24 * 60 * 60)
         guard recentSuccessfulValidation else { return false }
 
         // If expiry is available, consider license valid only while expiry is in the future.
@@ -299,5 +301,53 @@ struct LicenseGateStore {
 
     static func clearAndForceLogout() {
         clear()
+    }
+
+    private static func saveConfirmation(for license: String) {
+        let confirmation = LicenseConfirmation(
+            license: license,
+            runtimeSignature: KeyAuthConfig.runtimeSignature,
+            hardwareID: KeyAuthConfig.hardwareID(),
+            validatedAt: Date().timeIntervalSince1970
+        )
+        guard let data = try? JSONEncoder().encode(confirmation) else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: confirmationService,
+            kSecAttrAccount as String: confirmationAccount
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query
+            attributes.forEach { item[$0.key] = $0.value }
+            SecItemAdd(item as CFDictionary, nil)
+        }
+    }
+
+    private static func loadConfirmation() -> LicenseConfirmation? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: confirmationService,
+            kSecAttrAccount as String: confirmationAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return try? JSONDecoder().decode(LicenseConfirmation.self, from: data)
+    }
+
+    private static func deleteConfirmation() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: confirmationService,
+            kSecAttrAccount as String: confirmationAccount
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }
