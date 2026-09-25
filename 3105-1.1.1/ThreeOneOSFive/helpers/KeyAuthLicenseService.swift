@@ -126,25 +126,18 @@ struct KeyAuthValidationResponse: Decodable {
         if normalized.contains("already used") || normalized.contains("already in use") || normalized.contains("in use") || normalized.contains("used") {
             return .used
         }
-        if normalized.contains("success") || normalized.contains("valid") || normalized.contains("active") || normalized.contains("activated") {
-            return .valid
-        }
-        if normalized.contains("invalid") || normalized.contains("not found") || normalized.contains("error") || normalized.contains("banned") {
+        if normalized.contains("invalid") || normalized.contains("not valid") || normalized.contains("not found") || normalized.contains("error") || normalized.contains("failed") || normalized.contains("denied") || normalized.contains("revoked") || normalized.contains("banned") {
             return .invalid
         }
-        if let success = success {
-            return success ? .valid : .invalid
+        if normalized.contains("success") || normalized.contains("valid") || normalized.contains("active") || normalized.contains("activated") {
+            return .valid
         }
         return .unknown
     }
 
     var isValid: Bool {
-        switch state {
-        case .valid:
-            return true
-        case .invalid, .expired, .used, .unknown:
-            return false
-        }
+            guard success == true else { return false }
+            return state != .invalid && state != .expired && state != .used
     }
 }
 
@@ -182,8 +175,6 @@ enum KeyAuthLicenseService {
             throw KeyAuthLicenseError.invalidConfiguration
         }
 
-        print("[KeyAuth] INIT URL: \(initURL.absoluteString)")
-
         var initRequest = URLRequest(url: initURL)
         initRequest.httpMethod = "GET"
         initRequest.setValue("KeyAuth", forHTTPHeaderField: "User-Agent")
@@ -213,8 +204,6 @@ enum KeyAuthLicenseService {
             throw KeyAuthLicenseError.initFailed(initResult.message ?? "Error iniciando sesión en KeyAuth.")
         }
 
-        print("[KeyAuth] sessionID: \(sessionID)")
-
         // PASO 2: Validate license using sessionid
         guard var valComponents = URLComponents(string: KeyAuthConfig.baseURL) else {
             throw KeyAuthLicenseError.invalidConfiguration
@@ -232,9 +221,6 @@ enum KeyAuthLicenseService {
         guard let valURL = valComponents.url else {
             throw KeyAuthLicenseError.invalidConfiguration
         }
-
-        print("[KeyAuth] VALIDATE URL: \(valURL.absoluteString)")
-        print("[KeyAuth] VALIDATE hwid: \(KeyAuthConfig.hardwareID())")
 
         var valRequest = URLRequest(url: valURL)
         valRequest.httpMethod = "GET"
@@ -261,13 +247,8 @@ enum KeyAuthLicenseService {
             throw KeyAuthLicenseError.decodingFailed(body)
         }
 
-        // If server provides explicit `success`, trust it; otherwise use heuristic `isValid`.
-        var valid: Bool
-        if let explicitSuccess = valResult.success {
-            valid = explicitSuccess
-        } else {
-            valid = valResult.isValid
-        }
+        // Never confirm a license from free-form text alone.
+        var valid = valResult.isValid
 
         // HWID check: if server returns an HWID and it differs from our device, treat as explicit mismatch (invalid).
         var hwidMismatch = false
@@ -449,6 +430,10 @@ enum KeyAuthLicenseService {
             }
         }
 
+        if let expiryDate = parseDateString(expirationText), expiryDate <= Date() {
+            valid = false
+        }
+
         if let raw = String(data: valData, encoding: .utf8) {
             LicenseGateStore.persistLastResponse(body: raw)
         }
@@ -467,11 +452,6 @@ enum KeyAuthLicenseService {
             message: summaryText,
             expiry: expirationText
         )
-
-        // Record last successful validation timestamp for conservative offline behavior
-        if valid {
-            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keyauth.license.lastValidation")
-        }
 
         return valResult
     }
