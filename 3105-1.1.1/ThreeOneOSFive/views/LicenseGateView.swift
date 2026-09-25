@@ -110,6 +110,16 @@ struct LicenseGateView: View {
         do {
             let response = try await KeyAuthLicenseService.validate(licenseKey: licenseText)
 
+            guard response.isValid,
+                  LicenseGateStore.isValid(),
+                  LicenseGateStore.savedLicense() == licenseText.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                await MainActor.run {
+                    errorMessage = response.state.summary
+                    isLoading = false
+                }
+                return
+            }
+
             // If server provides explicit `success`, require it; otherwise rely on response.isValid
             if let explicitSuccess = response.success {
                 if explicitSuccess {
