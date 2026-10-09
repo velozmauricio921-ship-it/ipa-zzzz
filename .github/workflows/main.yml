@@ -8,7 +8,7 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
+            sed -n '1,200p' 3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift || true
 jobs:
   build:
     runs-on: macos-latest
@@ -43,6 +43,25 @@ jobs:
 
       - name: Show Xcode project schemes (debug)
         run: |
+      - name: Validate KeyAuth secrets
+        env:
+          KEYAUTH_SECRET: ${{ secrets.KEYAUTH_SECRET }}
+          KEYAUTH_OWNER_ID: ${{ secrets.KEYAUTH_OWNER_ID }}
+          KEYAUTH_APP_NAME: ${{ secrets.KEYAUTH_APP_NAME }}
+        run: |
+          set -e
+          if [ -z "$KEYAUTH_SECRET" ]; then
+            echo "::error::Missing KEYAUTH_SECRET (add as repository secret)"
+            exit 1
+          fi
+          if [ -z "$KEYAUTH_OWNER_ID" ]; then
+            echo "::error::Missing KEYAUTH_OWNER_ID (add as repository secret)"
+            exit 1
+          fi
+          if [ -z "$KEYAUTH_APP_NAME" ]; then
+            echo "::error::Missing KEYAUTH_APP_NAME (add as repository secret)"
+            exit 1
+          fi
           xcodebuild -list -project "3105-1.1.1/ThreeOneOSFive.xcodeproj"
 
       - name: Check for merge conflict markers
@@ -71,24 +90,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee Build/logs/xcodebuild.log
 
-      - name: Validate KeyAuth secrets
-        run: |
-          set -e
-          if [ -z "${{ secrets.KEYAUTH_SECRET }}" ]; then
-            echo "::error::Missing KEYAUTH_SECRET (add as repository secret)";
-            exit 1;
-          fi
-          if [ -z "${{ secrets.KEYAUTH_OWNER_ID }}" ]; then
-            echo "::error::Missing KEYAUTH_OWNER_ID (add as repository secret)";
-            exit 1;
-          fi
-          if [ -z "${{ secrets.KEYAUTH_APP_NAME }}" ]; then
-            echo "::error::Missing KEYAUTH_APP_NAME (add as repository secret)";
-            exit 1;
-          fi
-
       - name: Inject KeyAuth config into built Info.plist (from secrets)
-        if: always()
         env:
           KEYAUTH_APP_NAME: ${{ secrets.KEYAUTH_APP_NAME }}
           KEYAUTH_OWNER_ID: ${{ secrets.KEYAUTH_OWNER_ID }}
@@ -112,7 +114,7 @@ jobs:
           echo "Modifying $PLIST"
 
           python3 - "$PLIST" "$KEYAUTH_APP_NAME" "$KEYAUTH_OWNER_ID" "$KEYAUTH_SECRET" "$KEYAUTH_BASEURL" "$DISPLAY_NAME" <<'PY'
-          import os, plistlib, sys
+          REPO_PRELOADED_DIR="3105-1.1.1/ThreeOneOSFive/Resources/Preloaded"
           plist_path = sys.argv[1]
           pairs = {
               "KeyAuthAppName": sys.argv[2],
