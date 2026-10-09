@@ -8,7 +8,6 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-            sed -n '1,200p' 3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift || true
 jobs:
   build:
     runs-on: macos-latest
@@ -35,14 +34,16 @@ jobs:
           echo "--- LAST COMMIT ---"
           git --no-pager log -n 1 --pretty=fuller || true
           echo "--- FILE SNAPSHOT: LicenseGateView.swift ---"
-          if [ -f "ThreeOneOSFive/views/LicenseGateView.swift" ]; then
-            sed -n '1,200p' ThreeOneOSFive/views/LicenseGateView.swift || true
+          if [ -f "3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift" ]; then
+            sed -n '1,200p' 3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift || true
           else
-            echo "File not found: ThreeOneOSFive/views/LicenseGateView.swift"
+            echo "File not found: 3105-1.1.1/ThreeOneOSFive/views/LicenseGateView.swift"
           fi
 
       - name: Show Xcode project schemes (debug)
         run: |
+          xcodebuild -list -project "3105-1.1.1/ThreeOneOSFive.xcodeproj"
+
       - name: Validate KeyAuth secrets
         env:
           KEYAUTH_SECRET: ${{ secrets.KEYAUTH_SECRET }}
@@ -62,7 +63,6 @@ jobs:
             echo "::error::Missing KEYAUTH_APP_NAME (add as repository secret)"
             exit 1
           fi
-          xcodebuild -list -project "3105-1.1.1/ThreeOneOSFive.xcodeproj"
 
       - name: Check for merge conflict markers
         run: |
@@ -114,7 +114,9 @@ jobs:
           echo "Modifying $PLIST"
 
           python3 - "$PLIST" "$KEYAUTH_APP_NAME" "$KEYAUTH_OWNER_ID" "$KEYAUTH_SECRET" "$KEYAUTH_BASEURL" "$DISPLAY_NAME" <<'PY'
-          REPO_PRELOADED_DIR="3105-1.1.1/ThreeOneOSFive/Resources/Preloaded"
+          import plistlib
+          import sys
+
           plist_path = sys.argv[1]
           pairs = {
               "KeyAuthAppName": sys.argv[2],
@@ -157,7 +159,7 @@ jobs:
             exit 1
           fi
 
-          REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
+          REPO_PRELOADED_DIR="3105-1.1.1/ThreeOneOSFive/Resources/Preloaded"
           if [ -d "$REPO_PRELOADED_DIR" ]; then
             echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
             mkdir -p "$APP_PATH/Preloaded"
