@@ -59,14 +59,22 @@ final class LocalDiagnosticConnection: ObservableObject {
         }
     }
 
-    private let host: NWEndpoint.Host
-    private let port: NWEndpoint.Port
-    private let probe: Data
-    private let expectedResponse: Data
+    private var host: String
+    private var port: UInt16
+    private let probe: Data?
+    private let expectedResponse: Data?
     private let timeout: TimeInterval
     private var connection: NWConnection?
     private var timeoutTask: Task<Void, Never>?
     private var attemptID = UUID()
+
+    init() {
+        host = "127.0.0.1"
+        port = 1
+        probe = nil
+        expectedResponse = nil
+        timeout = 5
+    }
 
     init?(
         port: UInt16,
@@ -75,7 +83,8 @@ final class LocalDiagnosticConnection: ObservableObject {
         timeout: TimeInterval = 5,
         host: String = "127.0.0.1"
     ) {
-        guard let endpointPort = NWEndpoint.Port(rawValue: port),
+          guard port > 0,
+              NWEndpoint.Port(rawValue: port) != nil,
               !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !probe.isEmpty,
               !expectedResponse.isEmpty,
@@ -83,21 +92,35 @@ final class LocalDiagnosticConnection: ObservableObject {
             return nil
         }
 
-        self.host = NWEndpoint.Host(host)
-        self.port = endpointPort
+        self.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.port = port
         self.probe = probe
         self.expectedResponse = expectedResponse
         self.timeout = timeout
     }
 
     func connect() {
+        connect(host: host, port: port)
+    }
+
+    func connect(host: String, port: UInt16) {
         disconnect()
+        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+          guard port > 0,
+              !trimmedHost.isEmpty,
+              let endpointPort = NWEndpoint.Port(rawValue: port) else {
+            state = .failed("Introduce una IP y un puerto válidos")
+            return
+        }
+        self.host = trimmedHost
+        self.port = port
+
         let currentAttempt = UUID()
         attemptID = currentAttempt
         state = .connecting
 
         let connection = NWConnection(
-            to: .hostPort(host: host, port: port),
+            to: .hostPort(host: NWEndpoint.Host(trimmedHost), port: endpointPort),
             using: .tcp
         )
         self.connection = connection
@@ -107,7 +130,13 @@ final class LocalDiagnosticConnection: ObservableObject {
                 guard let self, self.attemptID == currentAttempt else { return }
                 switch newState {
                 case .ready:
-                    self.sendProbe(on: connection, attemptID: currentAttempt)
+                    if self.probe != nil, self.expectedResponse != nil {
+                        self.sendProbe(on: connection, attemptID: currentAttempt)
+                    } else {
+                        self.timeoutTask?.cancel()
+                        self.timeoutTask = nil
+                        self.state = .connected
+                    }
                 case .failed(let error):
                     self.fail(error.localizedDescription, attemptID: currentAttempt)
                 case .cancelled:
@@ -137,7 +166,10 @@ final class LocalDiagnosticConnection: ObservableObject {
     }
 
     private func sendProbe(on connection: NWConnection, attemptID: UUID) {
-        let expectedResponse = expectedResponse
+        guard let probe, let expectedResponse else {
+            fail("Handshake no configurado", attemptID: attemptID)
+            return
+        }
         connection.send(content: probe, completion: .contentProcessed { [weak self] error in
             if let error {
                 Task { @MainActor [weak self] in
