@@ -43,6 +43,8 @@
         <string>3105 needs access to photos for wallpaper customization.</string>
         <key>NSDocumentsFolderUsageDescription</key>
         <string>3105 needs access to documents for importing patch files.</string>
+        <key>NSLocalNetworkUsageDescription</key>
+        <string>3105 connects to your local diagnostic service on your computer.</string>
         <key>UIApplicationSceneManifest</key>
         <dict>
             <key>UIApplicationSupportsMultipleScenes</key>
