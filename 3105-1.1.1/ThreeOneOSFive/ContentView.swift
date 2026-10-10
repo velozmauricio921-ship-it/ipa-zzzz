@@ -207,6 +207,9 @@ private extension AppSection {
 private struct DashboardView: View {
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
+    @StateObject private var localTunnel = LocalDiagnosticConnection()
+    @AppStorage("localDiagnostic.host") private var localTunnelHost = ""
+    @AppStorage("localDiagnostic.port") private var localTunnelPort = ""
     @State private var showSettings = false
     @State private var showLogs = false
     @Binding var cleanerEnabled: Bool
@@ -237,6 +240,7 @@ private struct DashboardView: View {
                         developerPanel
                         contactPanel
                         deviceStatusPanel
+                        localTunnelPanel
                         homeInfoKeyToggle
                     }
                     .padding(.horizontal, 18)
@@ -467,6 +471,112 @@ private struct DashboardView: View {
                         .stroke(AppTheme.accent.opacity(0.4), lineWidth: 1.1)
                 )
         )
+    }
+
+    private var localTunnelPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 9) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(accent)
+                Text("LOCAL TUNNEL")
+                    .font(.system(size: 17, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accentSoft)
+                    .tracking(0.6)
+                Spacer()
+                Circle()
+                    .fill(localTunnelStatusColor)
+                    .frame(width: 9, height: 9)
+            }
+
+            HStack(spacing: 10) {
+                TextField("Computer IP", text: $localTunnelHost)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 12)
+                    .frame(height: 44)
+                    .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(stroke.opacity(0.55)))
+
+                TextField("Port", text: $localTunnelPort)
+                    .keyboardType(.numberPad)
+                    .frame(width: 74, height: 44)
+                    .multilineTextAlignment(.center)
+                    .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(stroke.opacity(0.55)))
+            }
+
+            HStack {
+                Text(localTunnelStatus)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(localTunnelStatusColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Button(action: toggleLocalTunnel) {
+                    Label(localTunnelIsActive ? "Disconnect" : "Connect", systemImage: localTunnelIsActive ? "xmark" : "link")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.20))
+                        .padding(.horizontal, 14)
+                        .frame(height: 40)
+                        .background(accent, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(panelAlt)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(stroke, lineWidth: 1.4)
+                )
+        )
+    }
+
+    private var localTunnelIsActive: Bool {
+        switch localTunnel.state {
+        case .connecting, .connected:
+            return true
+        case .disconnected, .failed:
+            return false
+        }
+    }
+
+    private var localTunnelStatus: String {
+        switch localTunnel.state {
+        case .disconnected:
+            return "Disconnected"
+        case .connecting:
+            return "Connecting..."
+        case .connected:
+            return "TCP reachable"
+        case .failed(let message):
+            return message
+        }
+    }
+
+    private var localTunnelStatusColor: Color {
+        switch localTunnel.state {
+        case .disconnected:
+            return .white.opacity(0.65)
+        case .connecting:
+            return accent
+        case .connected:
+            return .green
+        case .failed:
+            return .orange
+        }
+    }
+
+    private func toggleLocalTunnel() {
+        if localTunnelIsActive {
+            localTunnel.disconnect()
+            return
+        }
+        localTunnel.connect(host: localTunnelHost, port: UInt16(localTunnelPort) ?? 0)
     }
 
     private func statusRow(label: String, value: String, valueColor: Color = .white) -> some View {
