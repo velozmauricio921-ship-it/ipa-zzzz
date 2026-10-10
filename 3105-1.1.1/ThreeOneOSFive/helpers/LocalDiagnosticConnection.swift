@@ -59,6 +59,7 @@ final class LocalDiagnosticConnection: ObservableObject {
         }
     }
 
+    private let host: NWEndpoint.Host
     private let port: NWEndpoint.Port
     private let probe: Data
     private let expectedResponse: Data
@@ -67,14 +68,22 @@ final class LocalDiagnosticConnection: ObservableObject {
     private var timeoutTask: Task<Void, Never>?
     private var attemptID = UUID()
 
-    init?(port: UInt16, probe: Data, expectedResponse: Data, timeout: TimeInterval = 5) {
+    init?(
+        port: UInt16,
+        probe: Data,
+        expectedResponse: Data,
+        timeout: TimeInterval = 5,
+        host: String = "127.0.0.1"
+    ) {
         guard let endpointPort = NWEndpoint.Port(rawValue: port),
+              !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !probe.isEmpty,
               !expectedResponse.isEmpty,
               timeout > 0 else {
             return nil
         }
 
+        self.host = NWEndpoint.Host(host)
         self.port = endpointPort
         self.probe = probe
         self.expectedResponse = expectedResponse
@@ -88,7 +97,7 @@ final class LocalDiagnosticConnection: ObservableObject {
         state = .connecting
 
         let connection = NWConnection(
-            to: .hostPort(host: NWEndpoint.Host("127.0.0.1"), port: port),
+            to: .hostPort(host: host, port: port),
             using: .tcp
         )
         self.connection = connection
