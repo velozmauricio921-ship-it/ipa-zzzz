@@ -47,7 +47,7 @@ enum LimitedCleanerService {
         rootValidator: ContainerRootValidator
     ) throws -> LimitedCleanerUsage {
         guard operationsEnabled else { throw LimitedCleanerError.disabled }
-        try withValidatedRootDescriptor(containerURL, rootValidator: rootValidator) { rootDescriptor in
+        return try withValidatedRootDescriptor(containerURL, rootValidator: rootValidator) { rootDescriptor in
             let cache = scanAllowedDirectory(
                 components: ["Library", "Caches"],
                 rootDescriptor: rootDescriptor
