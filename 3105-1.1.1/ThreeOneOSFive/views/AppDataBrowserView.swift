@@ -155,7 +155,7 @@ struct AppDataBrowserView: View {
                     }
                 }
             }
-            Section(language.text("browser.available_locations")) {
+            Section {
                 ForEach(filteredLocations) { location in
                     let selectedFolder = authorizedFolder(for: location.authorizedFolderID)
                     let destination = FileBrowserDestination(
@@ -192,10 +192,14 @@ struct AppDataBrowserView: View {
                     }
                 }
             } header: {
-                Text(language.text("browser.locations_count", Int64(filteredLocations.count)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textCase(nil)
+                HStack {
+                    Text(language.text("browser.available_locations"))
+                    Spacer()
+                    Text(language.text("browser.locations_count", Int64(filteredLocations.count)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .textCase(nil)
             }
             Section {
                 Text(errorMessage ?? language.text("browser.no_app_catalog"))
