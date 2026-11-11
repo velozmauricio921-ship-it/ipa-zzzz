@@ -269,8 +269,7 @@ class AppState: ObservableObject {
         )
         guard applicable else { return }
 
-        refreshKernelExploitStatus()
-        maybeAutoRunKernelExploit()
+        // Device support detection must not probe or launch privileged access.
     }
 
     private func maybeAutoRunKernelExploit() {

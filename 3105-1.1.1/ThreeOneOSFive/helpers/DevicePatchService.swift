@@ -82,13 +82,19 @@ enum DevicePatchService {
         operation: ([String: URL]) throws -> T
     ) throws -> T {
         var roots: [String: URL] = [:]
+        guard let ownBundleID = Bundle.main.bundleIdentifier else {
+            throw PatchPackageError.applyFailed
+        }
+        let ownContainer = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        guard ContainerStore.isApplicationContainerPath(ownContainer.path) else {
+            throw PatchPackageError.applyFailed
+        }
 
         for bundleID in bundleIDs {
-            guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
-                  ContainerStore.isApplicationContainerPath(path) else {
+            guard bundleID == ownBundleID else {
                 throw PatchPackageError.targetAppUnavailable(bundleID)
             }
-            roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))
+            roots[bundleID] = PatchPathValidator.canonicalFileURL(ownContainer)
         }
         return try operation(roots)
     }

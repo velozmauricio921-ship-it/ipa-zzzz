@@ -6,6 +6,7 @@ enum AppSection: Int, CaseIterable, Identifiable {
     case patches
     case cleaner
     case wallpapers
+    case tunnelDemo
 
     var id: Int { rawValue }
 }
@@ -48,10 +49,10 @@ struct FeatureVisibility: Equatable {
         case .cleaner:
             return false
         case .files:
-            return false
+            return true
         case .wallpapers:
             return wallpapersEnabled && wallpapersSupported
-        case .home, .patches:
+        case .home, .patches, .tunnelDemo:
             return true
         }
     }
@@ -101,6 +102,24 @@ struct FileBrowserDestination: Hashable {
     let startPath: String
     let title: String
     let bundleID: String?
+    let accessKind: StorageAccessKind
+    let authorizedFolderID: UUID?
+
+    init(
+        containerPath: String,
+        startPath: String,
+        title: String,
+        bundleID: String?,
+        accessKind: StorageAccessKind = .legacyContainer,
+        authorizedFolderID: UUID? = nil
+    ) {
+        self.containerPath = containerPath
+        self.startPath = startPath
+        self.title = title
+        self.bundleID = bundleID
+        self.accessKind = accessKind
+        self.authorizedFolderID = authorizedFolderID
+    }
 }
 
 struct FilesTabState: Identifiable, Equatable {

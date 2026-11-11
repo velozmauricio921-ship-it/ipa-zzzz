@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.appLanguage) private var language
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var patchDraftCoordinator: PatchDraftCoordinator
+    @StateObject private var authorizedFolderProvider = AuthorizedFolderProvider()
     @State private var tabNavigation: AppTabNavigationState
     @AppStorage(FeatureVisibility.cleanerStorageKey) private var cleanerEnabled = false
     @AppStorage(FeatureVisibility.wallpapersStorageKey) private var wallpapersEnabled = true
@@ -38,6 +39,7 @@ struct ContentView: View {
                 compactLayout
             }
         }
+        .environmentObject(authorizedFolderProvider)
         .tint(AppTheme.accent)
         .imageScale(.small)
         .onChange(of: patchDraftCoordinator.request?.id) { requestID in
@@ -125,6 +127,8 @@ struct ContentView: View {
             CleanerView()
         case .wallpapers:
             WallpaperLabView()
+        case .tunnelDemo:
+            DeveloperTunnelDemoView()
         }
     }
 
@@ -190,6 +194,7 @@ private extension AppSection {
         case .patches: return "tab.patches"
         case .cleaner: return "tab.cleaner"
         case .wallpapers: return "Info Key"
+        case .tunnelDemo: return "tab.tunnel_demo"
         }
     }
 
@@ -200,6 +205,7 @@ private extension AppSection {
         case .patches: return "shippingbox.fill"
         case .cleaner: return "sparkles"
         case .wallpapers: return "key.fill"
+        case .tunnelDemo: return "network"
         }
     }
 }

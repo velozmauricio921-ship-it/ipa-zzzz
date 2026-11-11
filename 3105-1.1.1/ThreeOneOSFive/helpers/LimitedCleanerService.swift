@@ -29,11 +29,14 @@ struct LimitedCleanerResult: Equatable {
 }
 
 enum LimitedCleanerError: Error, Equatable {
+    case disabled
     case unsafeContainerRoot
 }
 
 enum LimitedCleanerService {
     typealias ContainerRootValidator = (URL) -> Bool
+
+    static let operationsEnabled = false
 
     /// This explicit allowlist is the product boundary. Do not add global `/var`
     /// paths here: this cleaner is intentionally limited to per-app disposable data.
@@ -43,6 +46,7 @@ enum LimitedCleanerService {
         containerURL: URL,
         rootValidator: ContainerRootValidator
     ) throws -> LimitedCleanerUsage {
+        guard operationsEnabled else { throw LimitedCleanerError.disabled }
         try withValidatedRootDescriptor(containerURL, rootValidator: rootValidator) { rootDescriptor in
             let cache = scanAllowedDirectory(
                 components: ["Library", "Caches"],
@@ -64,6 +68,7 @@ enum LimitedCleanerService {
         containerURL: URL,
         rootValidator: ContainerRootValidator
     ) throws -> LimitedCleanerResult {
+        guard operationsEnabled else { throw LimitedCleanerError.disabled }
         let before = try scan(containerURL: containerURL, rootValidator: rootValidator)
         var removal = RemovalSummary()
 
