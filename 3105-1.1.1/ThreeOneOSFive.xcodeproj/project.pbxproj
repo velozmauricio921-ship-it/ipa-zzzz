@@ -70,6 +70,16 @@
 		3105H200 /* AppTabNavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105H100; };
 		3105I200 /* FilesTabControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105I100; };
 		3105I201 /* FilesTabSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105I101; };
+		3105L200 /* DeveloperTunnelDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105L100; };
+		3105M200 /* StorageAccessResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105M100; };
+		3105M201 /* StorageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105M101; };
+		3105M202 /* AuthorizedFolderProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105M102; };
+		3105M203 /* ContainerDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105M103; };
+		3105N200 /* WQIntegrationStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N100; };
+		3105N201 /* WQAccessAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N101; };
+		3105N202 /* WQLaunchServicesAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N102; };
+		3105N203 /* WQIntegrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N103; };
+		3105N204 /* WQIntegrationDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N104; };
 		3105A233 /* ContainerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A104; };
 		3105A234 /* AppDataBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A105; };
 		3105A450 /* AudioFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A135; };
@@ -166,10 +176,20 @@
 		3105H100 /* AppTabNavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTabNavigationState.swift; sourceTree = "<group>"; };
 		3105I100 /* FilesTabControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTabControls.swift; sourceTree = "<group>"; };
 		3105I101 /* FilesTabSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTabSwitcherView.swift; sourceTree = "<group>"; };
+		3105L100 /* DeveloperTunnelDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTunnelDemoView.swift; sourceTree = "<group>"; };
 		3105A121 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		3105A122 /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/Localizable.strings; sourceTree = "<group>"; };
 		3105B123 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		3105A430 /* Preloaded */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Preloaded; sourceTree = "<group>"; };
+		3105M100 /* StorageAccessResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAccessResult.swift; sourceTree = "<group>"; };
+		3105M101 /* StorageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageProvider.swift; sourceTree = "<group>"; };
+		3105M102 /* AuthorizedFolderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizedFolderProvider.swift; sourceTree = "<group>"; };
+		3105M103 /* ContainerDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDiscoveryService.swift; sourceTree = "<group>"; };
+		3105N100 /* WQIntegrationStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQIntegrationStatus.swift; sourceTree = "<group>"; };
+		3105N101 /* WQAccessAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQAccessAdapter.swift; sourceTree = "<group>"; };
+		3105N102 /* WQLaunchServicesAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQLaunchServicesAdapter.swift; sourceTree = "<group>"; };
+		3105N103 /* WQIntegrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQIntegrationManager.swift; sourceTree = "<group>"; };
+		3105N104 /* WQIntegrationDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WQIntegrationDiagnostics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -255,7 +275,10 @@
 		3105A405 /* helpers */ = {
 			isa = PBXGroup;
 			children = (
+				3105M400 /* Storage */,
+				3105N400 /* WQIntegration */,
 				3105A099 /* Localization.swift */,
+				3105L100 /* DeveloperTunnelDemoView.swift */,
 				3105K100 /* LocalDiagnosticConnection.swift */,
 				3105A104 /* ContainerStore.swift */,
 				3105A108 /* ContainerIdentityResolver.swift */,
@@ -300,6 +323,77 @@
 				3105A135 /* AudioFeedback.swift */,
 			);
 			path = helpers;
+			sourceTree = "<group>";
+		};
+		3105M400 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				3105M100 /* StorageAccessResult.swift */,
+				3105M101 /* StorageProvider.swift */,
+				3105M102 /* AuthorizedFolderProvider.swift */,
+				3105M103 /* ContainerDiscoveryService.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		3105N400 /* WQIntegration */ = {
+			isa = PBXGroup;
+			children = (
+				3105N401 /* Interfaces */,
+				3105N402 /* Adapters */,
+				3105N403 /* Diagnostics */,
+				3105N404 /* WQAccess */,
+				3105N405 /* WQLaunchServices */,
+				3105N406 /* Support */,
+				3105N103 /* WQIntegrationManager.swift */,
+			);
+			path = WQIntegration;
+			sourceTree = "<group>";
+		};
+		3105N401 /* Interfaces */ = {
+			isa = PBXGroup;
+			children = (
+				3105N100 /* WQIntegrationStatus.swift */,
+			);
+			path = Interfaces;
+			sourceTree = "<group>";
+		};
+		3105N402 /* Adapters */ = {
+			isa = PBXGroup;
+			children = (
+				3105N101 /* WQAccessAdapter.swift */,
+				3105N102 /* WQLaunchServicesAdapter.swift */,
+			);
+			path = Adapters;
+			sourceTree = "<group>";
+		};
+		3105N403 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				3105N104 /* WQIntegrationDiagnostics.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
+		3105N404 /* WQAccess */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = WQAccess;
+			sourceTree = "<group>";
+		};
+		3105N405 /* WQLaunchServices */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = WQLaunchServices;
+			sourceTree = "<group>";
+		};
+		3105N406 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 		3105A406 /* kexploit */ = {
@@ -463,6 +557,16 @@
 				3105H200,
 				3105I200,
 				3105I201,
+				3105L200,
+				3105M200,
+				3105M201,
+				3105M202,
+				3105M203,
+				3105N200,
+				3105N201,
+				3105N202,
+				3105N203,
+				3105N204,
 				3105K200,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
