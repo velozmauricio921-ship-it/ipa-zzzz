@@ -157,6 +157,7 @@ struct AppDataBrowserView: View {
             }
             Section(language.text("browser.available_locations")) {
                 ForEach(filteredLocations) { location in
+                    let selectedFolder = authorizedFolder(for: location.authorizedFolderID)
                     let destination = FileBrowserDestination(
                         containerPath: location.rootURL.path,
                         startPath: location.rootURL.path,
@@ -180,10 +181,9 @@ struct AppDataBrowserView: View {
                     }
                     .contextMenu {
                         openInNewTabButton(destination)
-                        if let folderID = location.authorizedFolderID,
-                           let folder = authorizedFolderProvider.folders.first(where: { $0.id == folderID }) {
+                        if let selectedFolder {
                             Button(role: .destructive) {
-                                authorizedFolderProvider.remove(folder)
+                                authorizedFolderProvider.remove(selectedFolder)
                                 reload()
                             } label: {
                                 Label(language.text("browser.remove_folder"), systemImage: "folder.badge.minus")
@@ -257,6 +257,14 @@ struct AppDataBrowserView: View {
             tabSession.openTab(navigationPath: [destination])
         } label: {
             Label(language.text("browser.open_new_tab"), systemImage: "square.on.square")
+        }
+    }
+
+    private func authorizedFolder(for folderID: UUID?) -> AuthorizedFolder? {
+        guard let folderID else { return nil }
+        let folders = authorizedFolderProvider.folders
+        return folders.first { folder in
+            folder.id == folderID
         }
     }
 
