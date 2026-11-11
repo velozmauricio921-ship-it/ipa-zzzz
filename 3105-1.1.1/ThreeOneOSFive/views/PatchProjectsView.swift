@@ -692,7 +692,8 @@ private struct PatchProjectDetailView: View {
                                 FileBrowserView(
                                     containerPath: workspaceURL.path,
                                     title: project.name,
-                                    bundleID: nil
+                                    bundleID: nil,
+                                    accessKind: .appOwned
                                 )
                             } label: {
                                 Label(

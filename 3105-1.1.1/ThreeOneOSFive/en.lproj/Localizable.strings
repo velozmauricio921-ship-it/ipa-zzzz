@@ -77,6 +77,7 @@
 "tab.files" = "Files";
 "tab.patches" = "Magias";
 "tab.cleaner" = "Cleaner";
+"tab.tunnel_demo" = "Tunnel Demo";
 
 "cleaner.title" = "Cleaner";
 "cleaner.limited_mode" = "Limited Cleanup";
@@ -323,6 +324,19 @@
 "browser.title" = "App Data Browser";
 "browser.workspace" = "3105 Workspace";
 "browser.workspace_subtitle" = "Patches and files available in On My iPhone";
+"browser.available_locations" = "Available Locations";
+"browser.documents" = "Documents";
+"browser.application_support" = "Application Support";
+"browser.owned_location_subtitle" = "Stored by this app";
+"browser.user_selected_subtitle" = "Selected for this session";
+"browser.choose_folder" = "Choose Folder";
+"browser.remove_folder" = "Remove Location";
+"browser.locations_count" = "%lld locations";
+"browser.no_app_catalog" = "iOS does not provide a public API to list every installed app or open its private data. Choose a folder you are authorized to access.";
+"browser.no_authorized_locations" = "No authorized storage locations are available.";
+"browser.search_locations" = "Search locations";
+"browser.search_locations_empty" = "No Matching Locations";
+"browser.search_locations_empty_message" = "Try another location name.";
 "browser.loading" = "Loading…";
 "browser.empty" = "No application bundles could be resolved. Tap Retry to scan again.";
 "browser.retry" = "Retry";

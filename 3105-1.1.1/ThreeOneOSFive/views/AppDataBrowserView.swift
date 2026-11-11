@@ -6,31 +6,29 @@ struct AppDataBrowserView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var apps: [InstalledApp] = []
-    @State private var isLoading = false
-    @State private var isResolving = false
+    @State private var locations: [StorageLocation] = []
+    @State private var isLoading = true
     @State private var searchText = ""
     @State private var errorMessage: String?
-    @State private var hasLoaded = false
+    @State private var isShowingFolderPicker = false
     @State private var workspaceURL: URL?
+    @EnvironmentObject private var authorizedFolderProvider: AuthorizedFolderProvider
     @Binding private var tabSession: FilesTabSession
 
     init(tabSession: Binding<FilesTabSession>) {
         _tabSession = tabSession
     }
 
-    private var filteredApps: [InstalledApp] {
-        guard !searchText.isEmpty else { return apps }
+    private var filteredLocations: [StorageLocation] {
+        guard !searchText.isEmpty else { return locations }
         let q = searchText.lowercased()
-        return apps.filter {
-            $0.name.lowercased().contains(q) || $0.bundleID.lowercased().contains(q)
-        }
+        return locations.filter { $0.title.localizedCaseInsensitiveContains(q) }
     }
 
     private var overlayState: AppBrowserOverlayState {
-        if (isLoading || isResolving) && apps.isEmpty { return .loading }
-        if apps.isEmpty { return .empty }
-        if filteredApps.isEmpty { return .noResults }
+        if isLoading && locations.isEmpty { return .loading }
+        if locations.isEmpty { return .empty }
+        if filteredLocations.isEmpty { return .noResults }
         return .none
     }
 
@@ -48,25 +46,17 @@ struct AppDataBrowserView: View {
                     FilesTabToolbarButton(session: $tabSession)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { reload() } label: {
-                        if isResolving {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
+                    Button { isShowingFolderPicker = true } label: {
+                        Image(systemName: "folder.badge.plus")
                     }
-                    .disabled(isResolving)
-                    .accessibilityLabel(language.text("browser.retry"))
+                    .accessibilityLabel(language.text("browser.choose_folder"))
                 }
             }
             .onAppear {
                 if workspaceURL == nil {
                     workspaceURL = try? PatchWorkspaceService.patchesRootURL()
                 }
-                if !hasLoaded {
-                    hasLoaded = true
-                    reload()
-                }
+                reload()
             }
             .navigationDestination(for: FileBrowserDestination.self) { destination in
                 if destination.startPath == destination.containerPath {
@@ -74,6 +64,8 @@ struct AppDataBrowserView: View {
                         containerPath: destination.containerPath,
                         title: destination.title,
                         bundleID: destination.bundleID,
+                        accessKind: destination.accessKind,
+                        authorizedFolderID: destination.authorizedFolderID,
                         filesTabSession: $tabSession
                     )
                 } else {
@@ -82,10 +74,33 @@ struct AppDataBrowserView: View {
                         startPath: destination.startPath,
                         title: destination.title,
                         bundleID: destination.bundleID,
+                        accessKind: destination.accessKind,
+                        authorizedFolderID: destination.authorizedFolderID,
                         filesTabSession: $tabSession
                     )
                 }
             }
+        }
+        .sheet(isPresented: $isShowingFolderPicker) {
+            AuthorizedFolderPicker(
+                onSelection: { result in
+                    isShowingFolderPicker = false
+                    switch result {
+                    case .success(let url):
+                        switch authorizedFolderProvider.add(url) {
+                        case .success:
+                            errorMessage = nil
+                            reload()
+                        case .failure(let issue):
+                            errorMessage = issue.localizedDescription
+                        }
+                    case .failure(let issue):
+                        errorMessage = issue.localizedDescription
+                    }
+                },
+                onCancel: { isShowingFolderPicker = false }
+            )
+            .ignoresSafeArea()
         }
     }
 
@@ -103,7 +118,7 @@ struct AppDataBrowserView: View {
             }
             AppSearchField(
                 text: $searchText,
-                prompt: language.text("browser.search"),
+                prompt: language.text("browser.search_locations"),
                 clearLabel: language.text("common.clear")
             )
             Divider()
@@ -119,7 +134,8 @@ struct AppDataBrowserView: View {
                         containerPath: workspaceURL.path,
                         startPath: workspaceURL.path,
                         title: "3105",
-                        bundleID: nil
+                        bundleID: nil,
+                        accessKind: .appOwned
                     )
                     NavigationLink(value: workspaceDestination) {
                         HStack(spacing: 10) {
@@ -139,38 +155,52 @@ struct AppDataBrowserView: View {
                     }
                 }
             }
-            Section {
-                ForEach(filteredApps) { app in
-                    if app.containerPath.isEmpty {
-                        appRow(app)
-                    } else {
-                        let appDestination = FileBrowserDestination(
-                            containerPath: app.containerPath,
-                            startPath: app.containerPath,
-                            title: app.displayName,
-                            bundleID: app.bundleID
-                        )
-                        NavigationLink(value: appDestination) {
-                            appRow(app)
+            Section(language.text("browser.available_locations")) {
+                ForEach(filteredLocations) { location in
+                    let destination = FileBrowserDestination(
+                        containerPath: location.rootURL.path,
+                        startPath: location.rootURL.path,
+                        title: language.text(location.title),
+                        bundleID: nil,
+                        accessKind: location.accessKind,
+                        authorizedFolderID: location.authorizedFolderID
+                    )
+                    NavigationLink(value: destination) {
+                        HStack(spacing: 10) {
+                            AppRowIcon(systemName: location.accessKind == .userSelected ? "folder.badge.checkmark" : "folder.fill")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(language.text(location.title))
+                                    .font(.subheadline.weight(.semibold))
+                                Text(language.text(location.subtitleKey))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        .contextMenu {
-                            openInNewTabButton(appDestination)
+                        .padding(.vertical, 2)
+                    }
+                    .contextMenu {
+                        openInNewTabButton(destination)
+                        if let folderID = location.authorizedFolderID,
+                           let folder = authorizedFolderProvider.folders.first(where: { $0.id == folderID }) {
+                            Button(role: .destructive) {
+                                authorizedFolderProvider.remove(folder)
+                                reload()
+                            } label: {
+                                Label(language.text("browser.remove_folder"), systemImage: "folder.badge.minus")
+                            }
                         }
                     }
                 }
             } header: {
-                HStack(spacing: 8) {
-                    Text(language.text("browser.apps_count", Int64(filteredApps.count)))
-                    Spacer()
-                    if isResolving {
-                        ProgressView()
-                            .controlSize(.mini)
-                        Text(language.text("browser.mha_scanning"))
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(nil)
+                Text(language.text("browser.locations_count", Int64(filteredLocations.count)))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
+            }
+            Section {
+                Text(errorMessage ?? language.text("browser.no_app_catalog"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .listStyle(.insetGrouped)
@@ -235,7 +265,7 @@ struct AppDataBrowserView: View {
             Image(systemName: "folder.badge.questionmark")
                 .font(.system(size: AppTheme.emptyIconSize, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(errorMessage ?? language.text("browser.empty"))
+            Text(errorMessage ?? language.text("browser.no_authorized_locations"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -251,9 +281,9 @@ struct AppDataBrowserView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: AppTheme.emptyIconSize, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(language.text("browser.search_empty"))
+            Text(language.text("browser.search_locations_empty"))
                 .font(.subheadline.weight(.medium))
-            Text(language.text("browser.search_apps_empty_message"))
+            Text(language.text("browser.search_locations_empty_message"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -264,113 +294,15 @@ struct AppDataBrowserView: View {
 
     private func reload() {
         isLoading = true
-        isResolving = true
         errorMessage = nil
-        let emptyMessage = language.text("browser.empty")
-        DispatchQueue.global(qos: .userInitiated).async {
-            let bundleMetadata = ContainerStore.applicationBundleMetadataCatalog()
-            let apiApps = ContainerStore.applyingBundleMetadata(
-                to: ContainerStore.installedAppsFromAPI(),
-                catalog: bundleMetadata
-            )
-            if apiApps.isEmpty {
-                log("browser: installed-app API unavailable; trying MCM class-2 enumeration...")
-            }
-            let dynamicIdentifiers = ContainerStore.dynamicAppIdentifiers()
-            let mcmApps = ContainerStore.installedAppsFromMCM(
-                identifiers: dynamicIdentifiers,
-                bundleMetadata: bundleMetadata
-            )
-            let filesystemApps = ContainerStore.containersFromFilesystem()
-            let baseIdentifiedApps = mcmApps + apiApps
-            var result = ContainerDiscoveryMerger.merge(
-                enumerated: filesystemApps,
-                identified: baseIdentifiedApps,
-                path: { $0.containerPath }
-            )
-            log("browser: merged api=\(apiApps.count), MCM=\(mcmApps.count), filesystem=\(filesystemApps.count) -> \(result.count)")
-            result.sort { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-
-            let preliminary = result.filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
-            DispatchQueue.main.async {
-                apps = preliminary
-                isLoading = false
-            }
-
-            let launchServicesIdentifiers = ContainerStore.launchServicesStoreIdentifiers()
-            let mhaIdentifiers = MHAIdentifierCatalog.identifiers(
-                dynamic: dynamicIdentifiers,
-                installed: apiApps.map(\.bundleID),
-                research: ContainerStore.researchAppIdentifiers,
-                custom: bundleMetadata.keys.sorted(),
-                launchServices: launchServicesIdentifiers
-            )
-            log(
-                "browser: MHA catalog dynamic=\(dynamicIdentifiers.count), " +
-                "installed=\(apiApps.count), research=\(ContainerStore.researchAppIdentifiers.count), " +
-                "LaunchServices=\(launchServicesIdentifiers.count) -> \(mhaIdentifiers.count) candidates"
-            )
-            let mhaApps = ContainerStore.installedAppsFromMHACandidates(
-                identifiers: mhaIdentifiers,
-                bundleMetadata: bundleMetadata
-            ) { discoveredApps in
-                var progressiveResult = AppDataCatalogMerger.merge(
-                    identified: discoveredApps + baseIdentifiedApps,
-                    fallback: [],
-                    identifier: { $0.bundleID },
-                    path: { $0.containerPath }
-                )
-                progressiveResult = progressiveResult.filter {
-                    ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-                }
-                progressiveResult.sort {
-                    $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-                }
-                DispatchQueue.main.async {
-                    apps = progressiveResult
-                }
-            }
-
-            let allKnownApps = mhaApps + baseIdentifiedApps
-            let identifiedPaths = Set(allKnownApps.map {
-                ContainerDiscoveryMerger.canonicalPath($0.containerPath)
-            })
-            let unmatchedFilesystemApps = filesystemApps.filter {
-                !identifiedPaths.contains(
-                    ContainerDiscoveryMerger.canonicalPath($0.containerPath)
-                )
-            }
-            let inferredFilesystemApps = ContainerStore.inferUnidentifiedApps(
-                in: unmatchedFilesystemApps,
-                knownApps: allKnownApps,
-                launchServicesIdentifiers: Set(launchServicesIdentifiers)
-            ).filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
-            result = AppDataCatalogMerger.merge(
-                identified: allKnownApps,
-                fallback: inferredFilesystemApps,
-                identifier: { $0.bundleID },
-                path: { $0.containerPath }
-            )
-            result = result.filter {
-                ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
-            }
-            result.sort {
-                $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-            }
-
-            DispatchQueue.main.async {
-                apps = result
-                isLoading = false
-                isResolving = false
-                if result.isEmpty {
-                    errorMessage = emptyMessage
-                }
-            }
+        WQIntegrationDiagnostics.emit()
+        locations = ContainerDiscoveryService.availableLocations(
+            authorizedFolders: authorizedFolderProvider.folders
+        )
+        if case .failure(let issue) = ContainerDiscoveryService.installedApplications() {
+            log("browser: app catalog unavailable: \(issue.localizedDescription)")
         }
+        isLoading = false
     }
 }
 

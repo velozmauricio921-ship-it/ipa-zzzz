@@ -244,7 +244,7 @@ struct CleanerView: View {
         } label: {
             Image(systemName: "checklist")
         }
-        .disabled(isBusy)
+        .disabled(isBusy || !LimitedCleanerService.operationsEnabled)
         .accessibilityLabel(language.text("cleaner.selection_actions"))
     }
 
@@ -303,7 +303,7 @@ struct CleanerView: View {
             .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(selectedBundleIDs.isEmpty || isBusy)
+        .disabled(selectedBundleIDs.isEmpty || isBusy || !LimitedCleanerService.operationsEnabled)
         .padding(.vertical, 4)
     }
 
@@ -329,6 +329,7 @@ struct CleanerView: View {
                     Button(language.text("cleaner.scan_again")) { reload() }
                         .buttonStyle(.bordered)
                         .controlSize(.large)
+                        .disabled(!LimitedCleanerService.operationsEnabled)
                 }
             }
             .multilineTextAlignment(.center)
@@ -373,6 +374,15 @@ struct CleanerView: View {
 
     private func reload() {
         guard !isBusy else { return }
+        guard LimitedCleanerService.operationsEnabled else {
+            records.removeAll()
+            selectedBundleIDs.removeAll()
+            scannedAppCount = 0
+            isScanning = false
+            isCleaning = false
+            activeAlert = nil
+            return
+        }
 #if targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--simulate-cleaner-empty") {
             records = []
@@ -550,7 +560,7 @@ struct CleanerView: View {
     }
 
     private func cleanSelectedApps() {
-        guard !isBusy else { return }
+        guard LimitedCleanerService.operationsEnabled, !isBusy else { return }
         let selectedRecords = records.filter { selectedBundleIDs.contains($0.id) }
         guard !selectedRecords.isEmpty else { return }
         isCleaning = true

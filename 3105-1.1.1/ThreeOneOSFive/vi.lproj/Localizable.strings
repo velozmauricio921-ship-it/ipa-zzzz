@@ -77,6 +77,7 @@
 "tab.files" = "Tệp";
 "tab.patches" = "Magias";
 "tab.cleaner" = "Dọn dẹp";
+"tab.tunnel_demo" = "Tunnel Demo";
 
 "cleaner.title" = "Dọn dẹp";
 "cleaner.limited_mode" = "Dọn dẹp giới hạn";
@@ -323,6 +324,19 @@
 "browser.title" = "Duyệt dữ liệu ứng dụng";
 "browser.workspace" = "Workspace 3105";
 "browser.workspace_subtitle" = "Patch và tệp có trong Trên iPhone của tôi";
+"browser.available_locations" = "Vị trí khả dụng";
+"browser.documents" = "Tài liệu";
+"browser.application_support" = "Hỗ trợ ứng dụng";
+"browser.owned_location_subtitle" = "Do ứng dụng này lưu trữ";
+"browser.user_selected_subtitle" = "Được chọn cho phiên này";
+"browser.choose_folder" = "Chọn thư mục";
+"browser.remove_folder" = "Xóa vị trí";
+"browser.locations_count" = "%lld vị trí";
+"browser.no_app_catalog" = "iOS không cung cấp API công khai để liệt kê mọi ứng dụng đã cài đặt hoặc mở dữ liệu riêng của chúng. Hãy chọn thư mục bạn được phép truy cập.";
+"browser.no_authorized_locations" = "Không có vị trí lưu trữ được cấp quyền.";
+"browser.search_locations" = "Tìm vị trí";
+"browser.search_locations_empty" = "Không tìm thấy vị trí phù hợp";
+"browser.search_locations_empty_message" = "Hãy thử tên vị trí khác.";
 "browser.loading" = "Đang tải…";
 "browser.empty" = "Chưa phân giải được bundle ứng dụng. Nhấn Thử lại để quét lại.";
 "browser.retry" = "Thử lại";

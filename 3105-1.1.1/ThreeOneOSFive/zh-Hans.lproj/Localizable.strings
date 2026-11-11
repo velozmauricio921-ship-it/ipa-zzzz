@@ -77,6 +77,7 @@
 "tab.files" = "文件";
 "tab.patches" = "Magias";
 "tab.cleaner" = "清理";
+"tab.tunnel_demo" = "Tunnel Demo";
 
 "cleaner.title" = "清理";
 "cleaner.limited_mode" = "有限清理";
@@ -323,6 +324,19 @@
 "browser.title" = "应用数据浏览器";
 "browser.workspace" = "3105 工作区";
 "browser.workspace_subtitle" = "可在“我的 iPhone”中访问补丁和文件";
+"browser.available_locations" = "可用位置";
+"browser.documents" = "文稿";
+"browser.application_support" = "应用程序支持";
+"browser.owned_location_subtitle" = "由此应用存储";
+"browser.user_selected_subtitle" = "仅在本次会话中选择";
+"browser.choose_folder" = "选择文件夹";
+"browser.remove_folder" = "移除位置";
+"browser.locations_count" = "%lld 个位置";
+"browser.no_app_catalog" = "iOS 不提供公开 API 来列出所有已安装应用或打开其私有数据。请选择你有权访问的文件夹。";
+"browser.no_authorized_locations" = "没有可用的授权存储位置。";
+"browser.search_locations" = "搜索位置";
+"browser.search_locations_empty" = "没有匹配的位置";
+"browser.search_locations_empty_message" = "请尝试其他位置名称。";
 "browser.loading" = "正在加载…";
 "browser.empty" = "无法解析任何应用 bundle。轻点“重试”再次扫描。";
 "browser.retry" = "重试";

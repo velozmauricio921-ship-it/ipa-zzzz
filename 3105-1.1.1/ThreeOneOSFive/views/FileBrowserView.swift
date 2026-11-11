@@ -9,16 +9,17 @@ struct FileBrowserView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var patchDraftCoordinator: PatchDraftCoordinator
     @EnvironmentObject private var fileOperationCoordinator: FileOperationCoordinator
+    @EnvironmentObject private var authorizedFolderProvider: AuthorizedFolderProvider
     let containerPath: String
     let title: String
     let bundleID: String?
-    let isRoot: Bool
+    let accessKind: StorageAccessKind
+    let authorizedFolderID: UUID?
     private let filesTabSession: Binding<FilesTabSession>?
     @State private var currentPath: String
     @State private var entries: [FileEntry] = []
     @State private var fileSearchText = ""
     @State private var isLoadingEntries = true
-    @State private var hasGranted = false
     @State private var pendingReplacementRequest: FileReplacementRequest?
     @State private var replacementRequest: FileReplacementRequest?
     @State private var activityText: String?
@@ -35,6 +36,7 @@ struct FileBrowserView: View {
     @State private var transferSession: FileTransferSession?
     @State private var transferConflict: FileTransferConflict?
     @State private var deleteTargets: [FileEntry] = []
+    @State private var fileAccessIssue: StorageAccessIssue?
 
     private var filteredEntries: [FileEntry] {
         let query = fileSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -61,12 +63,15 @@ struct FileBrowserView: View {
         containerPath: String,
         title: String,
         bundleID: String? = nil,
+        accessKind: StorageAccessKind = .legacyContainer,
+        authorizedFolderID: UUID? = nil,
         filesTabSession: Binding<FilesTabSession>? = nil
     ) {
         self.containerPath = containerPath
         self.title = title
         self.bundleID = bundleID
-        self.isRoot = true
+        self.accessKind = accessKind
+        self.authorizedFolderID = authorizedFolderID
         self.filesTabSession = filesTabSession
         _currentPath = State(initialValue: containerPath)
     }
@@ -120,6 +125,8 @@ struct FileBrowserView: View {
                 startPath: destination.startPath,
                 title: destination.title,
                 bundleID: destination.bundleID,
+                accessKind: destination.accessKind,
+                authorizedFolderID: destination.authorizedFolderID,
                 filesTabSession: filesTabSession
             )
         }
@@ -373,7 +380,9 @@ struct FileBrowserView: View {
                     containerPath: containerPath,
                     startPath: entry.path,
                     title: entry.name,
-                    bundleID: bundleID
+                    bundleID: bundleID,
+                    accessKind: accessKind,
+                    authorizedFolderID: authorizedFolderID
                 )
             ) {
                 FileEntryRow(entry: entry, language: language, selectionState: nil)
@@ -472,7 +481,9 @@ struct FileBrowserView: View {
                     containerPath: containerPath,
                     startPath: entry.path,
                     title: entry.name,
-                    bundleID: bundleID
+                    bundleID: bundleID,
+                    accessKind: accessKind,
+                    authorizedFolderID: authorizedFolderID
                 )
             ]
         )
@@ -484,7 +495,7 @@ struct FileBrowserView: View {
             Image(systemName: "folder")
                 .font(.system(size: AppTheme.emptyIconSize, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(language.text("browser.empty_folder"))
+            Text(fileAccessIssue?.localizedDescription ?? language.text("browser.empty_folder"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -1135,31 +1146,32 @@ struct FileBrowserView: View {
     }
 
     private func load() {
-        let shouldGrant = !hasGranted && ContainerAccessPolicy.shouldRequestGrant(isRoot: isRoot)
-        hasGranted = true
         isLoadingEntries = true
         let path = currentPath
-        let targetBundleID = bundleID
+        let targetURL = URL(fileURLWithPath: path, isDirectory: true)
+        let rootURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+        let folderIsAuthorized = accessKind != .userSelected
+            || authorizedFolderProvider.authorizes(folderID: authorizedFolderID, path: path)
         DispatchQueue.global(qos: .userInitiated).async {
-            if shouldGrant {
-                var handle: Int64 = -1
-                if ContainerAccessPolicy.shouldAttemptMCM(bundleID: targetBundleID),
-                   let targetBundleID {
-                    var activationError: NSString?
-                    handle = MCMActivateContainer(2, targetBundleID, false, &activationError)
-                    let detail = activationError.map { String($0) } ?? "none"
-                    log("filebrowser: MCM activate \(targetBundleID) -> \(handle), detail=\(detail)")
-                }
-                if handle < 0 {
-                    handle = ContainerStore.grantContainerAccess(path)
-                    log("filebrowser: traversal grant \(path) -> \(handle)")
-                }
+            let result: StorageAccessResult<[FileEntry]>
+            if accessKind == .legacyContainer {
+                result = .failure(.legacyContainerUnavailable)
+            } else if !folderIsAuthorized {
+                result = .failure(.accessDenied)
+            } else {
+                result = FileSystemStorageProvider().listFiles(at: targetURL, within: rootURL)
             }
-            let loadedEntries = ContainerStore.listFiles(at: path)
             DispatchQueue.main.async {
                 guard currentPath == path else { return }
-                entries = loadedEntries
-                selectedEntryIDs.formIntersection(Set(loadedEntries.map(\.id)))
+                switch result {
+                case .success(let loadedEntries):
+                    entries = loadedEntries
+                    selectedEntryIDs.formIntersection(Set(loadedEntries.map(\.id)))
+                    fileAccessIssue = nil
+                case .failure(let issue):
+                    entries = []
+                    fileAccessIssue = issue
+                }
                 isLoadingEntries = false
             }
         }
@@ -1605,12 +1617,15 @@ extension FileBrowserView {
         startPath: String,
         title: String,
         bundleID: String?,
+        accessKind: StorageAccessKind = .legacyContainer,
+        authorizedFolderID: UUID? = nil,
         filesTabSession: Binding<FilesTabSession>? = nil
     ) {
         self.containerPath = containerPath
         self.title = title
         self.bundleID = bundleID
-        self.isRoot = false
+        self.accessKind = accessKind
+        self.authorizedFolderID = authorizedFolderID
         self.filesTabSession = filesTabSession
         _currentPath = State(initialValue: startPath)
     }
