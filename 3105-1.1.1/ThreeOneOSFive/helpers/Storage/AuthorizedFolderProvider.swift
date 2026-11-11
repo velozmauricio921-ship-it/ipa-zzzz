@@ -5,8 +5,47 @@ import UIKit
 struct AuthorizedFolder: Identifiable, Hashable {
     let id: UUID
     let url: URL
+    private let scopeLease: SecurityScopedFolderLease
+
+    fileprivate init(id: UUID, url: URL, scopeLease: SecurityScopedFolderLease) {
+        self.id = id
+        self.url = url
+        self.scopeLease = scopeLease
+    }
 
     var displayName: String { url.lastPathComponent }
+
+    static func == (lhs: AuthorizedFolder, rhs: AuthorizedFolder) -> Bool {
+        lhs.id == rhs.id && lhs.url == rhs.url
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(url)
+    }
+
+    fileprivate func stopAccessing() {
+        scopeLease.stop()
+    }
+}
+
+private final class SecurityScopedFolderLease {
+    private let url: URL
+    private var isActive = true
+
+    init(url: URL) {
+        self.url = url
+    }
+
+    func stop() {
+        guard isActive else { return }
+        isActive = false
+        url.stopAccessingSecurityScopedResource()
+    }
+
+    deinit {
+        stop()
+    }
 }
 
 @MainActor
@@ -30,14 +69,19 @@ final class AuthorizedFolderProvider: ObservableObject {
             return .failure(.locationUnavailable)
         }
 
-        let folder = AuthorizedFolder(id: UUID(), url: url)
+        let folder = AuthorizedFolder(
+            id: UUID(),
+            url: url,
+            scopeLease: SecurityScopedFolderLease(url: url)
+        )
         folders.append(folder)
         return .success(folder)
     }
 
     func remove(_ folder: AuthorizedFolder) {
         guard let index = folders.firstIndex(of: folder) else { return }
-        folders.remove(at: index).url.stopAccessingSecurityScopedResource()
+        let removedFolder = folders.remove(at: index)
+        removedFolder.stopAccessing()
     }
 
     func authorizes(folderID: UUID?, path: String) -> Bool {
@@ -50,11 +94,6 @@ final class AuthorizedFolderProvider: ObservableObject {
         return targetPath == rootPath || targetPath.hasPrefix(rootPath + "/")
     }
 
-    deinit {
-        for folder in folders {
-            folder.url.stopAccessingSecurityScopedResource()
-        }
-    }
 }
 
 struct AuthorizedFolderPicker: UIViewControllerRepresentable {

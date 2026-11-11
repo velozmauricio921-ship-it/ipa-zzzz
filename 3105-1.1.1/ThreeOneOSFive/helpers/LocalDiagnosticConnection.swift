@@ -148,6 +148,7 @@ final class LocalDiagnosticConnection: ObservableObject {
         }
 
         connection.start(queue: .global(qos: .utility))
+        let timeout = self.timeout
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(timeout))
             guard !Task.isCancelled else { return }
