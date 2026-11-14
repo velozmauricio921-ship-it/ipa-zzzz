@@ -360,7 +360,7 @@ struct AppDataBrowserView: View {
                 in: unmatchedFilesystemApps,
                 knownApps: allKnownApps,
                 launchServicesIdentifiers: Set(launchServicesIdentifiers)
-            }
+            )
             let unidentifiedUUIDCount = inferredFilesystemCandidates.filter {
                 UUID(uuidString: $0.bundleID) != nil
             }.count
