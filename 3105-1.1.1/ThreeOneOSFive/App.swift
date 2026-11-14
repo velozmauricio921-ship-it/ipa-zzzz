@@ -16,6 +16,8 @@ struct ThreeOneOSFiveApp: App {
     init() {
         setupLogCapture()
         log("app: 3105 launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
+        let info = Bundle.main.infoDictionary ?? [:]
+        log("[DIAG][SYSTEM] os=\(AppInfo.osVersion) build=\(AppInfo.osBuild) bundleID=\(Bundle.main.bundleIdentifier ?? "unknown") appVersion=\(info["CFBundleShortVersionString"] as? String ?? "unknown") appBuild=\(info["CFBundleVersion"] as? String ?? "unknown")")
     }
 
     private var language: AppLanguage {
@@ -249,6 +251,7 @@ class AppState: ObservableObject {
             patch: v.patch,
             build: AppInfo.osBuild
         )
+        log("[DIAG][SUPPORT] version=\(AppInfo.osVersion) build=\(AppInfo.osBuild) recognized=\(supported) requiresSandboxAccess=\(KernelExploit.requiresSandboxEscape)")
 #if targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--simulate-access") {
             exploitStatus = .success(method: "Simulator preview")
@@ -258,6 +261,7 @@ class AppState: ObservableObject {
         unsupportedMessage = supported ? nil : "iOS \(AppInfo.osVersion) (\(AppInfo.osBuild))"
         if let unsupportedMessage {
             exploitStatus = .unsupported(unsupportedMessage)
+            log("[DIAG][SUPPORT] accessEngine=skipped reason=version-not-recognized")
             return
         }
 
@@ -267,8 +271,12 @@ class AppState: ObservableObject {
             patch: v.patch,
             build: AppInfo.osBuild
         )
-        guard applicable else { return }
+        guard applicable else {
+            log("[DIAG][SUPPORT] accessEngine=skipped reason=not-applicable")
+            return
+        }
 
+        log("[DIAG][SUPPORT] accessEngine=existing-auto-run-path applicable=true")
         refreshKernelExploitStatus()
         maybeAutoRunKernelExploit()
     }
@@ -277,8 +285,12 @@ class AppState: ObservableObject {
         guard !kernelExploitRunning,
               !exploitStatus.isSuccess,
               !exploitStatus.isFailed,
-              !autoRunAttempted else { return }
+              !autoRunAttempted else {
+            log("[DIAG][SUPPORT] accessEngine=not-started running=\(kernelExploitRunning) succeeded=\(exploitStatus.isSuccess) failed=\(exploitStatus.isFailed) alreadyAttempted=\(autoRunAttempted)")
+            return
+        }
         autoRunAttempted = true
+        log("[DIAG][SUPPORT] accessEngine=existing-auto-run-start")
         log("app: starting kernel exploit automatically")
         runKernelExploitIfNeeded()
     }
@@ -308,6 +320,7 @@ class AppState: ObservableObject {
               !exploitStatus.isFailed else { return }
         kernelExploitRunning = true
         exploitStatus = .notStarted
+        log("[DIAG][SUPPORT] accessEngine=run-invoked")
         log("app: running kernel exploit on background...")
         DispatchQueue.global(qos: .userInitiated).async {
             let ok = KernelExploit.run()

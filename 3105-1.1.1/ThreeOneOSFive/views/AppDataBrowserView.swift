@@ -60,6 +60,7 @@ struct AppDataBrowserView: View {
                 }
             }
             .onAppear {
+                log("[DIAG][UI] AppDataBrowserView.onAppear hasLoaded=\(hasLoaded)")
                 if workspaceURL == nil {
                     workspaceURL = try? PatchWorkspaceService.patchesRootURL()
                 }
@@ -266,22 +267,28 @@ struct AppDataBrowserView: View {
         isLoading = true
         isResolving = true
         errorMessage = nil
+        log("[DIAG][UI] reload=begin hasLoaded=\(hasLoaded)")
         let emptyMessage = language.text("browser.empty")
         DispatchQueue.global(qos: .userInitiated).async {
-            let bundleMetadata = ContainerStore.applicationBundleMetadataCatalog()
+            let diagnostics = ContainerDiscoveryDiagnosticRecorder()
+            let bundleMetadata = ContainerStore.applicationBundleMetadataCatalog(
+                diagnostics: diagnostics
+            )
             let apiApps = ContainerStore.applyingBundleMetadata(
-                to: ContainerStore.installedAppsFromAPI(),
+                to: ContainerStore.installedAppsFromAPI(diagnostics: diagnostics),
                 catalog: bundleMetadata
             )
+            log("[DIAG][API] results=\(apiApps.count)")
             if apiApps.isEmpty {
                 log("browser: installed-app API unavailable; trying MCM class-2 enumeration...")
             }
-            let dynamicIdentifiers = ContainerStore.dynamicAppIdentifiers()
+            let dynamicIdentifiers = ContainerStore.dynamicAppIdentifiers(diagnostics: diagnostics)
             let mcmApps = ContainerStore.installedAppsFromMCM(
                 identifiers: dynamicIdentifiers,
-                bundleMetadata: bundleMetadata
+                bundleMetadata: bundleMetadata,
+                diagnostics: diagnostics
             )
-            let filesystemApps = ContainerStore.containersFromFilesystem()
+            let filesystemApps = ContainerStore.containersFromFilesystem(diagnostics: diagnostics)
             let baseIdentifiedApps = mcmApps + apiApps
             var result = ContainerDiscoveryMerger.merge(
                 enumerated: filesystemApps,
@@ -294,12 +301,16 @@ struct AppDataBrowserView: View {
             let preliminary = result.filter {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
+            log("[DIAG][FILTER] preliminaryInput=\(result.count) preliminaryVisible=\(preliminary.count) uuidHidden=\(result.filter { UUID(uuidString: $0.bundleID) != nil }.count)")
             DispatchQueue.main.async {
                 apps = preliminary
                 isLoading = false
+                log("[DIAG][UI] preliminaryPublished=\(apps.count)")
             }
 
-            let launchServicesIdentifiers = ContainerStore.launchServicesStoreIdentifiers()
+            let launchServicesIdentifiers = ContainerStore.launchServicesStoreIdentifiers(
+                diagnostics: diagnostics
+            )
             let mhaIdentifiers = MHAIdentifierCatalog.identifiers(
                 dynamic: dynamicIdentifiers,
                 installed: apiApps.map(\.bundleID),
@@ -312,9 +323,11 @@ struct AppDataBrowserView: View {
                 "installed=\(apiApps.count), research=\(ContainerStore.researchAppIdentifiers.count), " +
                 "LaunchServices=\(launchServicesIdentifiers.count) -> \(mhaIdentifiers.count) candidates"
             )
+            log("[DIAG][IDENTITY] launchServicesIdentifiers=\(launchServicesIdentifiers.count) validMHAIdentifiers=\(mhaIdentifiers.count)")
             let mhaApps = ContainerStore.installedAppsFromMHACandidates(
                 identifiers: mhaIdentifiers,
-                bundleMetadata: bundleMetadata
+                bundleMetadata: bundleMetadata,
+                diagnostics: diagnostics
             ) { discoveredApps in
                 var progressiveResult = AppDataCatalogMerger.merge(
                     identified: discoveredApps + baseIdentifiedApps,
@@ -330,6 +343,7 @@ struct AppDataBrowserView: View {
                 }
                 DispatchQueue.main.async {
                     apps = progressiveResult
+                    log("[DIAG][UI] progressivePublished=\(apps.count)")
                 }
             }
 
@@ -342,30 +356,69 @@ struct AppDataBrowserView: View {
                     ContainerDiscoveryMerger.canonicalPath($0.containerPath)
                 )
             }
-            let inferredFilesystemApps = ContainerStore.inferUnidentifiedApps(
+            let inferredFilesystemCandidates = ContainerStore.inferUnidentifiedApps(
                 in: unmatchedFilesystemApps,
                 knownApps: allKnownApps,
                 launchServicesIdentifiers: Set(launchServicesIdentifiers)
-            ).filter {
+            }
+            let unidentifiedUUIDCount = inferredFilesystemCandidates.filter {
+                UUID(uuidString: $0.bundleID) != nil
+            }.count
+            let inferredFilesystemApps = inferredFilesystemCandidates.filter {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
+            log("[DIAG][IDENTITY] filesystemUUIDsUnidentified=\(unidentifiedUUIDCount)")
             result = AppDataCatalogMerger.merge(
                 identified: allKnownApps,
                 fallback: inferredFilesystemApps,
                 identifier: { $0.bundleID },
                 path: { $0.containerPath }
             )
+            let uuidDiscardedCount = unidentifiedUUIDCount
+            let finalCandidateCount = result.count
+            let finalPolicyDiscardCount = result.filter {
+                !ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
+            }.count
             result = result.filter {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
+            log("[DIAG][FILTER] finalCandidates=\(finalCandidateCount) discardedByPresentationPolicy=\(finalPolicyDiscardCount) finalVisible=\(result.count)")
             result.sort {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
+
+            let observedIdentifiers = apiApps.map(\.bundleID)
+                + dynamicIdentifiers
+                + launchServicesIdentifiers
+                + mhaIdentifiers
+            let validIdentifierCount = Set(observedIdentifiers.filter {
+                ContainerBundleCandidateResolver.isValidBundleIdentifier($0)
+            }).count
+            let resolvablePaths = Set(result.compactMap { app -> String? in
+                let path = ContainerDiscoveryMerger.canonicalPath(app.containerPath)
+                return path.isEmpty ? nil : path
+            })
+            var accessiblePathCount = 0
+            for path in resolvablePaths {
+                do {
+                    _ = try FileManager.default.contentsOfDirectory(atPath: path)
+                    accessiblePathCount += 1
+                } catch {
+                    diagnostics.recordError(
+                        "FILESYSTEM",
+                        detail: "read-only accessibility probe failed path=\(path): \(error.localizedDescription)"
+                    )
+                }
+            }
+            let totalErrors = diagnostics.errorCount
+            log("[DIAG][FINAL] metadata=\(bundleMetadata.count) apiApps=\(apiApps.count) mcmIdentifiers=\(dynamicIdentifiers.count) mcmApps=\(mcmApps.count) filesystemContainers=\(filesystemApps.count) launchServicesIdentifiers=\(launchServicesIdentifiers.count) validIdentifiers=\(validIdentifierCount) mhaCandidates=\(mhaIdentifiers.count) mhaApps=\(mhaApps.count) inferredApps=\(inferredFilesystemApps.count) uuidFound=\(filesystemApps.filter { UUID(uuidString: $0.bundleID) != nil }.count) uuidUnidentified=\(unidentifiedUUIDCount) uuidDiscarded=\(uuidDiscardedCount) resolvablePaths=\(resolvablePaths.count) accessibleResources=\(accessiblePathCount) errors=\(totalErrors) presentedApps=\(result.count)")
+            diagnostics.logSuppressedErrorCount()
 
             DispatchQueue.main.async {
                 apps = result
                 isLoading = false
                 isResolving = false
+                log("[DIAG][UI] finalPublished=\(apps.count)")
                 if result.isEmpty {
                     errorMessage = emptyMessage
                 }

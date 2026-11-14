@@ -1140,6 +1140,7 @@ struct FileBrowserView: View {
         isLoadingEntries = true
         let path = currentPath
         let targetBundleID = bundleID
+        log("[DIAG][UI] fileLoad=begin path=\(path) bundleID=\(targetBundleID ?? "none") shouldRequestGrant=\(shouldGrant)")
         DispatchQueue.global(qos: .userInitiated).async {
             if shouldGrant {
                 var handle: Int64 = -1
@@ -1149,18 +1150,22 @@ struct FileBrowserView: View {
                     handle = MCMActivateContainer(2, targetBundleID, false, &activationError)
                     let detail = activationError.map { String($0) } ?? "none"
                     log("filebrowser: MCM activate \(targetBundleID) -> \(handle), detail=\(detail)")
+                    log("[DIAG][MCM] fileBrowserLookup bundleID=\(targetBundleID) result=\(handle >= 0 ? "success" : "denied") detail=\(detail)")
                 }
                 if handle < 0 {
                     handle = ContainerStore.grantContainerAccess(path)
                     log("filebrowser: traversal grant \(path) -> \(handle)")
+                    log("[DIAG][FILESYSTEM] fileBrowserTraversalGrant result=\(handle >= 0 ? "success" : "denied") handle=\(handle)")
                 }
             }
             let loadedEntries = ContainerStore.listFiles(at: path)
+            log("[DIAG][UI] fileLoad=finished path=\(path) entries=\(loadedEntries.count)")
             DispatchQueue.main.async {
                 guard currentPath == path else { return }
                 entries = loadedEntries
                 selectedEntryIDs.formIntersection(Set(loadedEntries.map(\.id)))
                 isLoadingEntries = false
+                log("[DIAG][UI] fileEntriesPublished=\(entries.count) path=\(path)")
             }
         }
     }
