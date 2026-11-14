@@ -33,6 +33,25 @@ struct FileEntry: Identifiable, Hashable {
     }
 }
 
+final class ContainerDiscoveryDiagnosticRecorder {
+    private(set) var errorCount = 0
+    private var suppressedErrorLogCount = 0
+
+    func recordError(_ source: String, detail: String) {
+        errorCount += 1
+        if errorCount <= 40 {
+            log("[DIAG][\(source)] error=\(detail)")
+        } else {
+            suppressedErrorLogCount += 1
+        }
+    }
+
+    func logSuppressedErrorCount() {
+        guard suppressedErrorLogCount > 0 else { return }
+        log("[DIAG][FINAL] additionalErrorDetailsSuppressed=\(suppressedErrorLogCount)")
+    }
+}
+
 // MARK: - Store
 
 enum ContainerStore {
@@ -109,7 +128,9 @@ enum ContainerStore {
 
     // MARK: Primary — MobileInstallation / LSApplicationWorkspace
 
-    static func installedAppsFromAPI() -> [InstalledApp] {
+    static func installedAppsFromAPI(
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [InstalledApp] {
         let raw = installedAppInfo() as? [String: [String: Any]] ?? [:]
         var apps: [InstalledApp] = []
         var missingContainer = 0
@@ -122,6 +143,10 @@ enum ContainerStore {
                     containerPath = resolved
                 } else {
                     missingContainer += 1
+                    diagnostics?.recordError(
+                        "API",
+                        detail: "app container unresolved bundleID=\(bundleID): \(lookupError.map(String.init) ?? "no path")"
+                    )
                 }
             }
             // Skip entries we cannot browse — empty path is dropped by mergers anyway.
@@ -135,17 +160,25 @@ enum ContainerStore {
             ))
         }
         log("browser: LS/API apps=\(apps.count) raw=\(raw.count) missingContainer=\(missingContainer)")
+        log("[DIAG][API] installedAppInfoRaw=\(raw.count) appsWithResolvedPath=\(apps.count) missingContainer=\(missingContainer)")
         return apps
     }
 
-    static func applicationBundleMetadataCatalog() -> [String: ApplicationBundleMetadata] {
+    static func applicationBundleMetadataCatalog(
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [String: ApplicationBundleMetadata] {
         var catalog: [String: ApplicationBundleMetadata] = [:]
         for root in applicationBundleRoots {
-            for metadata in applicationBundleMetadata(at: root.path, nested: root.nested) {
+            for metadata in applicationBundleMetadata(
+                at: root.path,
+                nested: root.nested,
+                diagnostics: diagnostics
+            ) {
                 catalog[metadata.bundleID] = metadata
             }
         }
         log("browser: app-bundle metadata resolved \(catalog.count) names")
+        log("[DIAG][API] bundleMetadataEntries=\(catalog.count)")
         return catalog
     }
 
@@ -168,17 +201,24 @@ enum ContainerStore {
         }
     }
 
-    static func dynamicAppIdentifiers() -> [String] {
+    static func dynamicAppIdentifiers(
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [String] {
         var enumerationError: NSString?
         let identifiers = MCMEnumerateIdentifiersForClass(2, 1_024, &enumerationError)
         let enumerationDetail = enumerationError.map { String($0) } ?? "none"
         log("browser: MCM class-2 identifiers=\(identifiers.count) detail=\(enumerationDetail)")
+        log("[DIAG][MCM] class=2 identifiers=\(identifiers.count) error=\(enumerationDetail)")
+        if let enumerationError {
+            diagnostics?.recordError("MCM", detail: "class-2 enumeration: \(enumerationError)")
+        }
         return identifiers
     }
 
     static func installedAppsFromMCM(
         identifiers: [String]? = nil,
-        bundleMetadata: [String: ApplicationBundleMetadata] = [:]
+        bundleMetadata: [String: ApplicationBundleMetadata] = [:],
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
     ) -> [InstalledApp] {
         let identifiers = identifiers ?? dynamicAppIdentifiers()
 
@@ -187,6 +227,7 @@ enum ContainerStore {
             var lookupError: NSString?
             guard let containerPath = MCMActivateContainerPath(2, bundleID, false, &lookupError) else {
                 let lookupDetail = lookupError.map { String($0) } ?? "no path"
+                diagnostics?.recordError("MCM", detail: "class-2 lookup bundleID=\(bundleID): \(lookupDetail)")
                 if index < 3 { log("mcm[\(index)]: \(bundleID) -> \(lookupDetail)") }
                 continue
             }
@@ -206,6 +247,7 @@ enum ContainerStore {
             ))
         }
         log("browser: MCM resolved \(apps.count)/\(identifiers.count) app paths")
+        log("[DIAG][MCM] identifiedApps=\(apps.count) identifiers=\(identifiers.count)")
         return apps
     }
 
@@ -214,6 +256,7 @@ enum ContainerStore {
     static func installedAppsFromMHACandidates(
         identifiers: [String],
         bundleMetadata: [String: ApplicationBundleMetadata] = [:],
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil,
         progress: (([InstalledApp]) -> Void)? = nil
     ) -> [InstalledApp] {
         guard !identifiers.isEmpty else {
@@ -231,6 +274,10 @@ enum ContainerStore {
                 &lookupError
             ),
                   isApplicationContainerPath(containerPath) else {
+                diagnostics?.recordError(
+                    "MCM",
+                    detail: "candidate lookup bundleID=\(bundleID): \(lookupError.map(String.init) ?? "invalid app-data path")"
+                )
                 if index < 3 {
                     let detail = lookupError.map { String($0) } ?? "invalid app-data path"
                     log("mha-candidate[\(index)]: \(bundleID) -> \(detail)")
@@ -260,12 +307,14 @@ enum ContainerStore {
 
         progress?(apps)
         log("browser: MHA-C2 resolved \(apps.count)/\(identifiers.count) bundle candidates")
+        log("[DIAG][MCM] MHAIdentifiedApps=\(apps.count) candidates=\(identifiers.count)")
         return apps
     }
 
     private static func applicationBundleMetadata(
         at rootPath: String,
-        nested: Bool
+        nested: Bool,
+        diagnostics: ContainerDiscoveryDiagnosticRecorder?
     ) -> [ApplicationBundleMetadata] {
         let handle = grantContainerAccess(rootPath)
         defer {
@@ -273,8 +322,15 @@ enum ContainerStore {
         }
 
         let fileManager = FileManager.default
-        guard let rootEntries = try? fileManager.contentsOfDirectory(atPath: rootPath) else {
+        let rootEntries: [String]
+        do {
+            rootEntries = try fileManager.contentsOfDirectory(atPath: rootPath)
+        } catch {
             log("browser: app-bundle metadata unavailable root=\(rootPath) grant=\(handle)")
+            diagnostics?.recordError(
+                "API",
+                detail: "bundle metadata root unavailable path=\(rootPath): \(error.localizedDescription)"
+            )
             return []
         }
 
@@ -298,10 +354,20 @@ enum ContainerStore {
 
         return bundlePaths.compactMap { bundlePath in
             let infoPath = (bundlePath as NSString).appendingPathComponent("Info.plist")
-            let infoSize = (try? fileManager.attributesOfItem(atPath: infoPath)[.size] as? NSNumber)?
-                .int64Value ?? 0
+            let infoSize: Int64
+            do {
+                let attributes = try fileManager.attributesOfItem(atPath: infoPath)
+                infoSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            } catch {
+                diagnostics?.recordError("API", detail: "bundle Info.plist stat failed path=\(infoPath): \(error.localizedDescription)")
+                return nil
+            }
             guard infoSize > 0, infoSize <= 2 * 1_024 * 1_024 else { return nil }
-            guard let plistData = try? Data(contentsOf: URL(fileURLWithPath: infoPath)) else {
+            let plistData: Data
+            do {
+                plistData = try Data(contentsOf: URL(fileURLWithPath: infoPath))
+            } catch {
+                diagnostics?.recordError("API", detail: "bundle Info.plist read failed path=\(infoPath): \(error.localizedDescription)")
                 return nil
             }
             return ApplicationBundleMetadataReader.metadata(
@@ -311,7 +377,9 @@ enum ContainerStore {
         }
     }
 
-    static func launchServicesStoreIdentifiers() -> [String] {
+    static func launchServicesStoreIdentifiers(
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [String] {
         var cachePaths: [String] = []
         var seenCachePaths = Set<String>()
 
@@ -335,11 +403,16 @@ enum ContainerStore {
         } else if shouldUseBadQuery {
             let detail = serviceLookupError.map { String($0) } ?? "no path"
             log("browser: MCM com.apple.lsd activation unavailable detail=\(detail)")
+            log("[DIAG][LAUNCHSERVICES] serviceContainer=unavailable error=\(detail)")
+            diagnostics?.recordError("LAUNCHSERVICES", detail: "MCM service-container lookup: \(detail)")
         }
 
-        let traversedSystemDirectories = enumerateDirectoriesWithTraversalGrant(path: systemDataRoot)
+        let traversedSystemDirectories = enumerateDirectoriesWithTraversalGrant(
+            path: systemDataRoot,
+            diagnostics: diagnostics
+        )
         let systemDirectories = traversedSystemDirectories.isEmpty
-            ? enumerateDirectories(path: systemDataRoot)
+            ? enumerateDirectories(path: systemDataRoot, diagnostics: diagnostics)
             : traversedSystemDirectories
         for directory in systemDirectories {
             // Attempt the raw metadata read even without a traversal grant:
@@ -371,6 +444,7 @@ enum ContainerStore {
                 handle = grantContainerAccess(cachePath)
                 if handle < 0 {
                     log("browser: LaunchServices traversal grant failed \(cachePath) -> \(handle)")
+                    diagnostics?.recordError("LAUNCHSERVICES", detail: "cache traversal grant failed path=\(cachePath) handle=\(handle)")
                     continue
                 }
             }
@@ -378,7 +452,13 @@ enum ContainerStore {
                 if handle >= 0 { bad_query_release(handle) }
             }
 
-            let names = (try? FileManager.default.contentsOfDirectory(atPath: cachePath)) ?? []
+            let names: [String]
+            do {
+                names = try FileManager.default.contentsOfDirectory(atPath: cachePath)
+            } catch {
+                diagnostics?.recordError("LAUNCHSERVICES", detail: "cache directory listing failed path=\(cachePath): \(error.localizedDescription)")
+                continue
+            }
             for name in names where identifiers.count < maximumCandidateCount {
                 guard name.hasPrefix("com.apple.LaunchServices-"),
                       name.hasSuffix("-v2.csstore") else {
@@ -401,6 +481,7 @@ enum ContainerStore {
         }
 
         log("browser: LaunchServices store total candidates=\(identifiers.count)")
+        log("[DIAG][LAUNCHSERVICES] candidateIdentifiers=\(identifiers.count)")
         return identifiers
     }
 
@@ -413,17 +494,28 @@ enum ContainerStore {
 
     // MARK: Filesystem discovery
 
-    static func enumerateDirectories(path: String, maxInode: Int64 = 2_000_000) -> [String] {
+    static func enumerateDirectories(
+        path: String,
+        maxInode: Int64 = 2_000_000,
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [String] {
         let clean = path.hasSuffix("/") ? String(path.dropLast()) : path
         guard clean.hasPrefix("/") else { return [] }
 
-        if let names = try? FileManager.default.contentsOfDirectory(atPath: clean), !names.isEmpty {
-            return names.map { (clean as NSString).appendingPathComponent($0) }
+        do {
+            let names = try FileManager.default.contentsOfDirectory(atPath: clean)
+            if !names.isEmpty {
+                return names.map { (clean as NSString).appendingPathComponent($0) }
+            }
+        } catch {
+            log("[DIAG][FILESYSTEM] directEnumeration=failed path=\(clean) error=\(error.localizedDescription)")
+            diagnostics?.recordError("FILESYSTEM", detail: "direct enumeration failed path=\(clean): \(error.localizedDescription)")
         }
 
         var pathC = clean.utf8CString.map { Int8($0) }
         guard let result = bad_query_list(&pathC, maxInode) else {
             log("enumerate: NULL for \(clean)")
+            diagnostics?.recordError("FILESYSTEM", detail: "directory enumeration returned NULL path=\(clean)")
             return []
         }
         defer { free(result) }
@@ -436,25 +528,40 @@ enum ContainerStore {
         return list
     }
 
-    static func enumerateDirectoriesWithTraversalGrant(path: String) -> [String] {
+    static func enumerateDirectoriesWithTraversalGrant(
+        path: String,
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [String] {
         if !shouldUseBadQuery {
-            if let names = try? FileManager.default.contentsOfDirectory(atPath: path), !names.isEmpty {
-                return names.map { (path as NSString).appendingPathComponent($0) }
+            do {
+                let names = try FileManager.default.contentsOfDirectory(atPath: path)
+                if !names.isEmpty {
+                    return names.map { (path as NSString).appendingPathComponent($0) }
+                }
+            } catch {
+                log("[DIAG][FILESYSTEM] directEnumeration=failed path=\(path) error=\(error.localizedDescription)")
             }
-            return enumerateDirectories(path: path)
+            return enumerateDirectories(path: path, diagnostics: diagnostics)
         }
 
         let handle = grantContainerAccess(path)
         if handle >= 0 {
             defer { bad_query_release(handle) }
-            if let names = try? FileManager.default.contentsOfDirectory(atPath: path), !names.isEmpty {
-                return names.map { (path as NSString).appendingPathComponent($0) }
+            do {
+                let names = try FileManager.default.contentsOfDirectory(atPath: path)
+                if !names.isEmpty {
+                    return names.map { (path as NSString).appendingPathComponent($0) }
+                }
+            } catch {
+                log("[DIAG][FILESYSTEM] grantedEnumeration=failed path=\(path) error=\(error.localizedDescription)")
+                diagnostics?.recordError("FILESYSTEM", detail: "granted enumeration failed path=\(path): \(error.localizedDescription)")
             }
         } else {
             log("browser: root traversal grant failed \(path) -> \(handle)")
+            diagnostics?.recordError("FILESYSTEM", detail: "root traversal grant failed path=\(path) handle=\(handle)")
         }
 
-        return enumerateDirectories(path: path)
+        return enumerateDirectories(path: path, diagnostics: diagnostics)
     }
 
     static func readContainerMetadata(containerPath: String) -> ContainerMetadata? {
@@ -493,18 +600,26 @@ enum ContainerStore {
         )
     }
 
-    static func grantContainerAccess(_ containerPath: String) -> Int64 {
+        let items: [String]
+        do {
+            items = try fm.contentsOfDirectory(atPath: path)
+        } catch {
         guard shouldUseBadQuery else { return -1 }
-        let clean = containerPath.hasSuffix("/") ? String(containerPath.dropLast()) : containerPath
+            log("[DIAG][FILESYSTEM] directoryListing=failed path=\(path) errno=\(errno) error=\(error.localizedDescription)")
         var pathC = clean.utf8CString.map { Int8($0) }
         return bad_query(&pathC, true, nil, false)
     }
 
-    static func containersFromFilesystem() -> [InstalledApp] {
-        let grantedDirectories = enumerateDirectoriesWithTraversalGrant(path: appDataRoot)
+    static func containersFromFilesystem(
+        diagnostics: ContainerDiscoveryDiagnosticRecorder? = nil
+    ) -> [InstalledApp] {
+        let grantedDirectories = enumerateDirectoriesWithTraversalGrant(
+            path: appDataRoot,
+            diagnostics: diagnostics
+        )
         let dirs: [String]
         if grantedDirectories.isEmpty {
-            dirs = enumerateDirectories(path: appDataRoot)
+            dirs = enumerateDirectories(path: appDataRoot, diagnostics: diagnostics)
             log("browser: filesystem root=\(appDataRoot) inode fallback enumerated \(dirs.count) containers")
         } else {
             dirs = grantedDirectories
@@ -523,6 +638,11 @@ enum ContainerStore {
             )
         }
         log("browser: filesystem accepted \(apps.count)/\(dirs.count) app containers")
+        let uuidCount = apps.filter { UUID(uuidString: $0.bundleID) != nil }.count
+        log("[DIAG][FILESYSTEM] directories=\(dirs.count) uuidContainers=\(uuidCount)")
+        if dirs.isEmpty {
+            diagnostics?.recordError("FILESYSTEM", detail: "no app-data directories enumerated")
+        }
         return apps
     }
 
@@ -647,6 +767,7 @@ enum ContainerStore {
         let uuid = (fallback.containerPath as NSString).lastPathComponent
         let preview = (candidates + artifactCandidates).prefix(6).joined(separator: ",")
         log("browser: unresolved \(uuid) metadata=unavailable savedStates=\(savedStates.count) preferences=\(preferences.count) artifacts=\(artifactNames.count) candidates=[\(preview)]")
+        log("[DIAG][IDENTITY] uuid=\(uuid) identified=false reason=no-matching-metadata-or-confirmed-candidate savedStates=\(savedStates.count) preferences=\(preferences.count) artifacts=\(artifactNames.count) candidatePreview=[\(preview)]")
         return nil
     }
 
@@ -685,6 +806,7 @@ enum ContainerStore {
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(atPath: path) else {
             log("listFiles: FAILED for \(path) errno=\(errno)")
+            log("[DIAG][FILESYSTEM] directoryListing=failed path=\(path) errno=\(errno)")
             return []
         }
         var entries: [FileEntry] = []
@@ -696,10 +818,12 @@ enum ContainerStore {
             let size = isDir.boolValue ? 0 : ((try? fm.attributesOfItem(atPath: full)[.size] as? Int64) ?? 0)
             entries.append(FileEntry(name: item, path: full, isDirectory: isDir.boolValue, size: size))
         }
-        return entries.sorted {
+        let sortedEntries = entries.sorted {
             if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
             return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
+        log("[DIAG][FILESYSTEM] directoryListing=success path=\(path) entries=\(sortedEntries.count)")
+        return sortedEntries
     }
 
     static func readTextFile(at path: String, limit: Int = 200_000) -> String {
