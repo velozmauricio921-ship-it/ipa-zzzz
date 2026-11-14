@@ -600,12 +600,9 @@ enum ContainerStore {
         )
     }
 
-        let items: [String]
-        do {
-            items = try fm.contentsOfDirectory(atPath: path)
-        } catch {
+    static func grantContainerAccess(_ containerPath: String) -> Int64 {
         guard shouldUseBadQuery else { return -1 }
-            log("[DIAG][FILESYSTEM] directoryListing=failed path=\(path) errno=\(errno) error=\(error.localizedDescription)")
+        let clean = containerPath.hasSuffix("/") ? String(containerPath.dropLast()) : containerPath
         var pathC = clean.utf8CString.map { Int8($0) }
         return bad_query(&pathC, true, nil, false)
     }
@@ -640,9 +637,6 @@ enum ContainerStore {
         log("browser: filesystem accepted \(apps.count)/\(dirs.count) app containers")
         let uuidCount = apps.filter { UUID(uuidString: $0.bundleID) != nil }.count
         log("[DIAG][FILESYSTEM] directories=\(dirs.count) uuidContainers=\(uuidCount)")
-        if dirs.isEmpty {
-            diagnostics?.recordError("FILESYSTEM", detail: "no app-data directories enumerated")
-        }
         return apps
     }
 
@@ -804,9 +798,12 @@ enum ContainerStore {
 
     static func listFiles(at path: String) -> [FileEntry] {
         let fm = FileManager.default
-        guard let items = try? fm.contentsOfDirectory(atPath: path) else {
+        let items: [String]
+        do {
+            items = try fm.contentsOfDirectory(atPath: path)
+        } catch {
             log("listFiles: FAILED for \(path) errno=\(errno)")
-            log("[DIAG][FILESYSTEM] directoryListing=failed path=\(path) errno=\(errno)")
+            log("[DIAG][FILESYSTEM] directoryListing=failed path=\(path) errno=\(errno) error=\(error.localizedDescription)")
             return []
         }
         var entries: [FileEntry] = []
